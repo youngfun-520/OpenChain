@@ -140,6 +140,9 @@ async def _run_chat(sm: SessionManager, workspace: str, model: str):
             continue
 
         # Invoke graph for single turn
+        import time
+        t0 = time.time()
+        click.echo("[DEBUG] calling graph.ainvoke()...")
         result = await graph.ainvoke({
             "session_id": session_id,
             "workspace": workspace,
@@ -154,8 +157,27 @@ async def _run_chat(sm: SessionManager, workspace: str, model: str):
             "retry_count": 0,
             "security_context": {"workspace_root": workspace}
         })
+        elapsed = time.time() - t0
+        num_messages = len(result.get("messages", []))
+        tool_results = result.get("tool_results", [])
+        error = result.get("error")
+        click.echo(f"[DEBUG] done in {elapsed:.1f}s | messages={num_messages} tool_results={len(tool_results)} error={error}")
         response = result["messages"][-1].content if result["messages"] else ""
-        click.echo(f"\nAssistant: {response}")
+        # Show tool results clearly
+        if tool_results:
+            for tr in tool_results:
+                name = tr.get("tool_name", "?")
+                res = tr.get("result", {})
+                if res.get("status") == "success" and "items" in res:
+                    items = res["items"]
+                    click.echo(f"\n[{name}] {len(items)} items: {', '.join(items[:5])}{'...' if len(items) > 5 else ''}")
+                elif res.get("status") == "success" and "content" in res:
+                    click.echo(f"\n[{name}] {res['content'][:200]}")
+                elif res.get("status") == "error":
+                    click.echo(f"\n[{name}] Error: {res.get('message', 'unknown')}")
+        if response and not response.startswith("<think>"):
+            click.echo(f"\nAssistant: {response}")
+
 
     await sm.close()
     click.echo("Goodbye!")

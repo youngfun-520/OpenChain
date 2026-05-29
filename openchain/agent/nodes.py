@@ -123,9 +123,14 @@ async def node_call_model(state: AgentState) -> AgentState:
 
     try:
         result = await llm.ainvoke(state["messages"])
+        # Extract tool_calls from result message and propagate to state
+        msg_tool_calls = []
+        if hasattr(result, "tool_calls") and result.tool_calls:
+            msg_tool_calls = result.tool_calls
         return {
             **state,
-            "messages": state["messages"] + [result]
+            "messages": state["messages"] + [result],
+            "tool_calls": msg_tool_calls
         }
     except Exception as e:
         state["error"] = f"LLMError: {e}"
@@ -170,6 +175,8 @@ async def node_execute_tools(state: AgentState) -> AgentState:
         args = tc.get("args", {})
         if hasattr(args, "model_dump"):
             args = args.model_dump()
+        if isinstance(args, dict) and "kwargs" in args:
+            args = args["kwargs"]  # StructuredTool wraps args in {"kwargs": {...}}
         call_id = str(uuid.uuid4())
 
         # Security check for API mode (bash disabled unless explicitly enabled)
@@ -261,10 +268,12 @@ async def node_save_message_node(state: AgentState) -> AgentState:
         # Extract tool_calls if present
         tool_calls_data = None
         if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-            tool_calls_data = [
-                {"name": tc.name, "args": tc.args, "id": tc.id}
-                for tc in last_message.tool_calls
-            ]
+            tool_calls_data = []
+            for tc in last_message.tool_calls:
+                if isinstance(tc, dict):
+                    tool_calls_data.append({"name": tc.get("name"), "args": tc.get("args"), "id": tc.get("id")})
+                else:
+                    tool_calls_data.append({"name": tc.name, "args": tc.args, "id": tc.id})
 
         node = await sm.save_assistant_message_node(
             session_id=state["session_id"],

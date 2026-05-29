@@ -9,6 +9,7 @@ PROVIDER_KEYS = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
+    "minimax": "MINIMAX_API_KEY",
 }
 
 PLACEHOLDER_VALUES = {"", "your_api_key_here", "your-key-here", "sk-ant-..."}
@@ -28,6 +29,7 @@ PROVIDER_MODELS = {
     "anthropic": ["claude-sonnet-4-7", "claude-opus-4-7", "claude-haiku-4-5"],
     "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
     "deepseek": ["deepseek-chat"],
+    "minimax": ["MiniMax-M2.7"],
 }
 
 DEFAULT_MODEL = None  # Resolved dynamically
@@ -78,12 +80,15 @@ class ModelRegistry:
             "方式 1: 编辑 .env 文件，设置以下任一 key：\n"
             "  ANTHROPIC_API_KEY=sk-ant-...\n"
             "  OPENAI_API_KEY=sk-...\n"
-            "  DEEPSEEK_API_KEY=sk-...\n\n"
+            "  DEEPSEEK_API_KEY=sk-...\n"
+            "  MINIMAX_API_KEY=sk-...\n\n"
             "方式 2: 设置环境变量：\n"
             "  export ANTHROPIC_API_KEY=sk-ant-...\n\n"
-            "获取 API key: https://console.anthropic.com/ (Anthropic)\n"
-            "获取 API key: https://platform.openai.com/ (OpenAI)\n"
-            "获取 API key: https://platform.deepseek.com/ (DeepSeek)"
+            "获取 API key:\n"
+            "  Anthropic: https://console.anthropic.com/\n"
+            "  OpenAI: https://platform.openai.com/\n"
+            "  DeepSeek: https://platform.deepseek.com/\n"
+            "  MiniMax: https://platform.minimax.io/"
         )
 
     def resolve_model(self, requested: str, session_override: Optional[str] = None) -> str:
