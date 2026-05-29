@@ -62,7 +62,11 @@ python -m openchain.agent chat --workspace /path/to/project
 - `/new` - 新建会话
 - `/tree` - 查看会话树
 - `/fork <node_id>` - 从指定节点分叉
+- `/compact` - 压缩会话历史（LLM 摘要）
 - `/quit` - 退出
+
+**多行输入:** 输入未闭合的括号、引号时，自动继续输入直到闭合。
+**Ctrl+C:** 清空当前输入 buffer，不退出会话。
 
 ### API 模式
 
@@ -74,8 +78,10 @@ python -m openchain.agent api
 - `GET /health` - 健康检查（无需认证）
 - `POST /sessions` - 创建会话
 - `GET /sessions/{id}` - 获取会话
+- `PATCH /sessions/{id}` - 更新会话（如切换模型）
 - `DELETE /sessions/{id}` - 删除会话
 - `GET /sessions/{id}/tree` - 获取会话树
+- `GET /sessions/{id}/trace` - 导出会话完整轨迹（nodes + tool_calls + audit_logs）
 - `POST /sessions/{id}/fork` - 分叉会话
 - `POST /chat` - 发送消息
 
@@ -165,9 +171,9 @@ openchain/
 ## 后续事项
 
 - error node 路由优化
-- /compact 会话压缩
-- CLI 自动补全增强
-- 消息队列功能
+- /compact 会话压缩 ✅
+- CLI 自动补全增强 ✅
+- 消息队列功能 ✅
 
 ## License
 

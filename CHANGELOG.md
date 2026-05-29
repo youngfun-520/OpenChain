@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-05-29
+
+### Features
+
+- **/compact History Compression**
+  - `compact_session()` compresses session history via LLM summarization
+  - Original message nodes preserved with `compact_summary` field (not deleted)
+  - New CLI command: `/compact`
+
+- **Enhanced CLI Experience**
+  - Multiline input detection (brackets `()`, `[]`, `{}`, quotes `"`, `'`)
+  - Ctrl+C clears input buffer without exiting REPL
+  - REPL command autocomplete via `get_completions()` function
+
+- **Message Queue**
+  - `steering_queue`: prepend directives to next agent call (consumed after injection)
+  - `followup_queue`: persist suggestions shown to user after response
+  - Stored in `sessions.queue_messages` JSON column
+  - `node_steering_inject` and `node_finalize_followup` wired into LangGraph workflow
+
+- **Multi-Model Switching**
+  - `ModelRegistry.resolve_model(requested, session_override)` for per-session override
+  - `ModelRegistry.validate_model_config(model)` raises `ModelNotFoundError` for invalid models
+  - `PATCH /sessions/{id}` endpoint to update session model
+  - `fork_session` preserves parent model
+
+- **Trace Export**
+  - `export_trace(session_id)`: session metadata + all nodes + tool_calls + audit_logs
+  - `GET /sessions/{id}/trace` API endpoint
+  - `write_trace_to_file(sm, session_id, path)` utility
+
+### Tests
+
+- 84 tests passed (up from 63 in v0.1.2)
+
 ## [0.1.2] - 2026-05-29
 
 ### Security
