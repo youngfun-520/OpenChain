@@ -1,10 +1,20 @@
 """Pytest configuration and fixtures."""
-
+import asyncio
+import gc
 import tempfile
 from unittest.mock import MagicMock
 
 import pytest
 from click.testing import CliRunner
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_db_connections():
+    """Ensure any lingering database connections are closed after each test."""
+    yield
+    # Allow background tasks to complete
+    await asyncio.sleep(0.01)
+    gc.collect()
 
 
 @pytest.fixture

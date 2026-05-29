@@ -82,9 +82,13 @@ class Database:
         """Async context manager exit — always closes connection."""
         await self.close()
 
-    async def close(self):
+    async def close(self) -> None:
+        """Close the database connection."""
         if self.conn:
-            await self.conn.close()
+            try:
+                await self.conn.close()
+            except Exception:
+                pass
             self.conn = None
 
     def execute(self, sql: str, params: tuple = ()):
