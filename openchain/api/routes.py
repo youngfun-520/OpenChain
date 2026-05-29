@@ -1,10 +1,11 @@
 """FastAPI routes for OpenChain API."""
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Security
 from pydantic import BaseModel
 from typing import Optional
 from openchain.session import SessionManager
 from openchain.agent.graph import build_graph
 from openchain.model_registry import ModelRegistry
+from openchain.api.auth import verify_api_key
 
 
 app = FastAPI(title="OpenChain API")
@@ -30,7 +31,7 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/sessions")
+@app.get("/sessions", dependencies=[Security(verify_api_key)])
 async def list_sessions():
     """List all sessions."""
     sm = SessionManager()
@@ -44,7 +45,7 @@ async def list_sessions():
     return {"sessions": sessions}
 
 
-@app.post("/sessions")
+@app.post("/sessions", dependencies=[Security(verify_api_key)])
 async def create_session(req: CreateSessionRequest):
     """Create new session."""
     mr = ModelRegistry()
@@ -56,7 +57,7 @@ async def create_session(req: CreateSessionRequest):
     return session
 
 
-@app.get("/sessions/{session_id}")
+@app.get("/sessions/{session_id}", dependencies=[Security(verify_api_key)])
 async def get_session(session_id: str):
     """Get session info."""
     sm = SessionManager()
@@ -74,7 +75,7 @@ async def get_session(session_id: str):
     return session
 
 
-@app.delete("/sessions/{session_id}")
+@app.delete("/sessions/{session_id}", dependencies=[Security(verify_api_key)])
 async def delete_session(session_id: str):
     """Delete session."""
     sm = SessionManager()
@@ -86,7 +87,7 @@ async def delete_session(session_id: str):
     return {"status": "deleted"}
 
 
-@app.get("/sessions/{session_id}/tree")
+@app.get("/sessions/{session_id}/tree", dependencies=[Security(verify_api_key)])
 async def get_session_tree(session_id: str):
     """Get session tree structure."""
     sm = SessionManager()
@@ -96,7 +97,7 @@ async def get_session_tree(session_id: str):
     return {"session_id": session_id, "nodes": nodes}
 
 
-@app.post("/sessions/{session_id}/fork")
+@app.post("/sessions/{session_id}/fork", dependencies=[Security(verify_api_key)])
 async def fork_session(session_id: str, req: ForkRequest):
     """Fork session from a node."""
     sm = SessionManager()
@@ -106,7 +107,7 @@ async def fork_session(session_id: str, req: ForkRequest):
     return forked
 
 
-@app.post("/chat")
+@app.post("/chat", dependencies=[Security(verify_api_key)])
 async def chat(req: ChatRequest):
     """Send chat message."""
     mr = ModelRegistry()
