@@ -66,11 +66,11 @@ class Database:
         if self.conn:
             await self.conn.close()
 
-    async def execute(self, sql: str, params: tuple = ()):
-        return await self.conn.execute(sql, params)
+    def execute(self, sql: str, params: tuple = ()):
+        return self.conn.execute(sql, params)
 
-    async def executemany(self, sql: str, params: list):
-        return await self.conn.executemany(sql, params)
+    def executemany(self, sql: str, params: list):
+        return self.conn.executemany(sql, params)
 
     async def commit(self):
         await self.conn.commit()

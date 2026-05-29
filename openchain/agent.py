@@ -13,10 +13,18 @@ def cli():
 
 
 @cli.command()
-def chat():
+@click.option("--workspace", default=".", help="Workspace directory")
+def chat(workspace: str):
     """Start interactive CLI chat mode."""
-    from openchain.cli import chat
-    chat()
+    from openchain.cli import _run_chat
+    from openchain.session import SessionManager
+    from openchain.model_registry import ModelRegistry
+    import asyncio
+
+    mr = ModelRegistry()
+    model = mr.get_default_model()
+    sm = SessionManager()
+    asyncio.run(_run_chat(sm, workspace, model))
 
 
 @cli.command()
