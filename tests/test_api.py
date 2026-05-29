@@ -5,7 +5,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient, ASGITransport
 from openchain.api.routes import app
 
-os.environ["OPENCHAIN_API_KEYS"] = "test-key-123"
+@pytest.fixture(autouse=True)
+def setup_api_key():
+    """Ensure OPENCHAIN_API_KEYS is set for each test."""
+    os.environ["OPENCHAIN_API_KEYS"] = "test-key-123"
+    yield
+    os.environ.pop("OPENCHAIN_API_KEYS", None)
+
 API_KEY_HEADER = {"X-API-Key": "test-key-123"}
 
 
