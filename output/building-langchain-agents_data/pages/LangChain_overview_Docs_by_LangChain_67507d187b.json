@@ -1,0 +1,60 @@
+{
+  "url": "https://docs.langchain.com/oss/python/langchain/overview?utm_source=chatgpt.com",
+  "title": "LangChain overview - Docs by LangChain",
+  "content": "LangChain provides create_agent: a minimal, highly configurable agent harness. Compose exactly the agent your use case needs from model, tools, prompt, and middleware.\n\nFetch the complete documentation index at: https://docs.langchain.com/llms.txt\n\nUse this file to discover all available pages before exploring further.\n\nWas this page helpful?",
+  "headings": [
+    {
+      "level": "h2",
+      "text": "On this page",
+      "id": "_R_2tdbsnlht5debsnpfdb_"
+    },
+    {
+      "level": "h1",
+      "text": "LangChain overview",
+      "id": "page-title"
+    },
+    {
+      "level": "h2",
+      "text": "Documentation Index",
+      "id": ""
+    },
+    {
+      "level": "h2",
+      "text": "​ Create an agent",
+      "id": "create-an-agent"
+    },
+    {
+      "level": "h2",
+      "text": "​ Core benefits",
+      "id": "core-benefits"
+    },
+    {
+      "level": "h2",
+      "text": "Standard model interface",
+      "id": ""
+    },
+    {
+      "level": "h2",
+      "text": "Highly configurable harness",
+      "id": ""
+    },
+    {
+      "level": "h2",
+      "text": "Built on top of LangGraph",
+      "id": ""
+    },
+    {
+      "level": "h2",
+      "text": "Debug with LangSmith",
+      "id": ""
+    }
+  ],
+  "code_samples": [
+    {
+      "code": "# pip install -qU langchain \"langchain[openai]\"\nfrom langchain.agents import create_agent\n\ndef get_weather(city: str) -> str:\n    \"\"\"Get weather for a given city.\"\"\"\n    return f\"It's always sunny in {city}!\"\n\nagent = create_agent(\n    model=\"openai:gpt-5.4\",\n    tools=[get_weather],\n    system_prompt=\"You are a helpful assistant\",\n)\n\nresult = agent.invoke(\n    {\"messages\": [{\"role\": \"user\", \"content\": \"What's the weather in San Francisco?\"}]}\n)\nprint(result[\"messages\"][-1].content_blocks)",
+      "language": "json"
+    }
+  ],
+  "patterns": [],
+  "links": []
+}

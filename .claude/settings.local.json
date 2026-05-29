@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/yangfan/.claude/**)",
+      "Bash(mkdir -p ~/.claude/skills)",
+      "Bash(cp -r /home/yangfan/workspace/OpenChain/skills/building-langchain-agents ~/.claude/skills/)"
+    ]
+  }
+}
