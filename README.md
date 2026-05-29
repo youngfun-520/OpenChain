@@ -41,6 +41,13 @@ OPENCHAIN_WORKSPACE_ROOT=.
 OPENCHAIN_DEFAULT_MODEL=claude-sonnet-4-7
 OPENCHAIN_API_ENABLE_BASH=false
 OPENCHAIN_BASH_TIMEOUT=30
+
+# API Keys — 格式: key1:scope1,scope2|key2
+OPENCHAIN_API_KEYS=key1:read,write|key2:read
+
+# Sandbox 安全加固
+OPENCHAIN_READONLY_WORKSPACE=1   # 禁用写文件操作
+OPENCHAIN_SANDBOX_MODE=1         # 限制 bash 可用命令
 ```
 
 ## 使用
@@ -80,8 +87,30 @@ curl -H "X-API-Key: your-key" http://localhost:8000/sessions
 
 环境变量配置：
 ```bash
-OPENCHAIN_API_KEYS=key1,key2,key3
+# API Keys — 格式: key1:scope1,scope2|key2:scope1|key3
+# scope 可选值: read, write, admin
+# admin 拥有所有权限
+OPENCHAIN_API_KEYS=key1:read,write|key2:read|admin-key:read,write,admin
 ```
+
+### API Scopes
+
+| Scope | 权限 |
+|-------|------|
+| `read` | 读取会话列表、获取会话、查看会话树 |
+| `write` | 创建/删除会话、发送消息、分叉 |
+| `admin` | 所有权限，包括 write |
+
+### API 审计日志
+
+所有 API 请求（除 `/health`）都会记录到 `audit_logs` 表：
+
+```bash
+# 请求头
+curl -H "X-API-Key: your-key" http://localhost:8000/sessions
+```
+
+日志包含: key_label, endpoint, method, status_code, client_ip, timestamp, request_id
 
 ## 测试
 
@@ -118,6 +147,20 @@ openchain/
 - 危险 bash 命令自动拦截
 - API 模式默认禁用 bash
 - 所有工具调用记录审计日志
+
+### Sandbox 安全加固
+
+**敏感文件保护:** 以下文件类型自动拦截读写操作：
+- 凭据文件: `.env`, `id_rsa`, `secrets.json`, `.aws/credentials`, `.gcp/*.json`, `.docker/config.json`
+- 配置凭据: `.git/config`, `.npmrc`, `.pypirc`, `.netrc`, `.pgpass`, `.my.cnf`, `config.py`
+
+**只读模式:** `OPENCHAIN_READONLY_WORKSPACE=1` 禁用所有写文件操作
+
+**受限 bash:** `OPENCHAIN_SANDBOX_MODE=1` 限制可用命令，阻止：
+- 网络工具: `curl`, `wget`, `nc`, `telnet`, `ssh`
+- 容器/集群: `docker`, `kubectl`, `terraform`, `ansible`
+- 脚本解释器: `python`, `node`, `ruby`, `perl`, `bash`, `sh`
+- 系统修改: `chmod`, `chown`, `setfacl`
 
 ## 后续事项
 

@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-05-29
+
+### Security
+
+- **Enhanced API Permission Model**
+  - Multi-key support with scopes: `read`, `write`, `admin`
+  - Keys via `OPENCHAIN_API_KEYS` env var (format: `key1:read,write|key2:read`)
+  - Request audit logging to `audit_logs` table (key_label, endpoint, method, status_code, client_ip, timestamp, request_id)
+
+- **Enhanced Sandbox**
+  - Sensitive file detection: blocks `.env`, `id_rsa`, `secrets.json`, `.aws/credentials`, `.gcp/*.json`, `.docker/config.json`, `.git/config`, `.npmrc`, `.pypirc`, `.netrc`, `.pgpass`, `.my.cnf`, `config.py`
+  - Workspace read-only mode: set `OPENCHAIN_READONLY_WORKSPACE=1`
+  - Restricted bash profile: set `OPENCHAIN_SANDBOX_MODE=1` to block curl, wget, nc, ssh, docker, kubectl, python, etc.
+
+### Reliability
+
+- **aiosqlite Event Loop Cleanup**
+  - Added `cleanup_db_connections` pytest fixture
+  - Robust `Database.close()` with exception suppression
+  - Reduced `RuntimeError: Event loop is closed` warnings in test teardown
+
+### Testing
+
+- **Concurrency / Stress Tests**
+  - Concurrent session creation (10 parallel creates)
+  - Concurrent message saves to same session
+  - Concurrent tool call audit logging
+  - Concurrent audit log writes
+  - Parallel API endpoint tests via ThreadPoolExecutor
+
+### Tests
+
+- 63 tests passed (up from 42 in v0.1.1)
+
 ## [0.1.1] - 2026-05-29
 
 ### Fixed
