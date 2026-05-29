@@ -13,6 +13,28 @@ This document outlines planned improvements and enhancements for OpenChain Agent
 
 ---
 
+## Completed
+
+### /compact Command (v0.2.0)
+- Implemented session compaction to preserve recent messages and summarize older ones
+- Custom compaction instructions support added
+
+### CLI Auto-completion (v0.2.0)
+- Click shell complete integration for commands and paths
+- Command argument completion implemented
+
+### Message Queue (v0.2.0)
+- Steering message vs follow-up message distinction implemented
+- Alt+Enter for follow-up queueing
+- Message queue display
+
+### Model Switching (v0.2.0)
+- Per-session model selection supported
+- Model comparison mode
+- Cost tracking per model
+
+---
+
 ## Phase 1: Architecture Improvements
 
 ### P0: Error Node Integration
@@ -59,30 +81,6 @@ This document outlines planned improvements and enhancements for OpenChain Agent
 
 ## Phase 3: User Experience
 
-### P1: /compact Command
-**Issue**: Long conversations exhaust context windows.
-
-**Solution**:
-- Implement session compaction (similar to pi.dev)
-- Preserve recent messages, summarize older ones
-- Add custom compaction instructions support
-
-### P2: CLI Auto-completion
-**Issue**: No shell auto-completion for commands and paths.
-
-**Solution**:
-- Add click shell complete integration
-- Path completion for file tools
-- Command argument completion
-
-### P2: Message Queue
-**Issue**: Users cannot queue messages while agent is working.
-
-**Solution**:
-- Implement steering message vs follow-up message distinction
-- Alt+Enter for follow-up queueing
-- Message queue display
-
 ### P3: Interactive Diff for Edits
 **Issue**: edit_file is a blunt replacement tool.
 
@@ -94,14 +92,6 @@ This document outlines planned improvements and enhancements for OpenChain Agent
 ---
 
 ## Phase 4: Platform Integration
-
-### P2: Model Switching
-**Issue**: Only one model can be configured at a time.
-
-**Solution**:
-- Support per-session model selection
-- Model comparison mode
-- Cost tracking per model
 
 ### P3: Web UI
 **Issue**: No visual interface for non-CLI users.
