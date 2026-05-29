@@ -60,6 +60,20 @@ class ModelRegistry:
             return self._available_models[0]
         raise ModelNotFoundError("No model available. Please set API key in .env")
 
+    def resolve_model(self, requested: str, session_override: Optional[str] = None) -> str:
+        """Return session_override if valid, else requested, else default."""
+        if session_override:
+            try:
+                self.validate_model_config(session_override)
+                return session_override
+            except ModelNotFoundError:
+                pass
+        try:
+            self.validate_model_config(requested)
+            return requested
+        except ModelNotFoundError:
+            return self.get_default_model()
+
     def validate_model_config(self, model: str):
         """Validate that a model is configured."""
         if model not in self._available_models:

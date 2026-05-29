@@ -59,6 +59,24 @@ class SessionManager:
             "created_at": None
         }
 
+    async def update_session_model(self, session_id: str, model: str) -> None:
+        """Update the model for an existing session."""
+        cursor = await self.db.execute(
+            "SELECT metadata FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            raise ValueError(f"Session {session_id} not found")
+        meta = json.loads(row[0] or "{}")
+        if "model_config" not in meta:
+            meta["model_config"] = {}
+        meta["model_config"]["model"] = model
+        await self.db.execute(
+            "UPDATE sessions SET model = ?, metadata = ? WHERE session_id = ?",
+            (model, json.dumps(meta), session_id)
+        )
+        await self.db.commit()
+
     async def save_user_message_node(
         self,
         session_id: str,
@@ -202,3 +220,82 @@ class SessionManager:
     async def get_session_tree(self, session_id: str) -> list[dict]:
         """Get session tree structure (nodes with parent info)."""
         return await self.get_session_nodes(session_id)
+
+    async def get_session(self, session_id: str) -> Optional[dict]:
+        """Get session by ID."""
+        cursor = await self.db.execute(
+            "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        async with cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return None
+            columns = [desc[0] for desc in cursor.description]
+            return dict(zip(columns, row))
+
+    async def export_trace(self, session_id: str) -> dict:
+        """Export complete session trace: session metadata + all message nodes + tool calls + audit logs."""
+        session = await self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        nodes = await self.get_session_nodes(session_id)
+
+        tool_calls_cursor = await self.db.execute(
+            "SELECT * FROM tool_calls WHERE session_id = ? ORDER BY created_at",
+            (session_id,)
+        )
+        tool_calls = await tool_calls_cursor.fetchall()
+        tool_calls_rows = []
+        for tc in tool_calls:
+            tool_calls_rows.append({
+                "call_id": tc[0],
+                "node_id": tc[1],
+                "session_id": tc[2],
+                "tool_name": tc[3],
+                "arguments": json.loads(tc[4]) if tc[4] else {},
+                "result": json.loads(tc[5]) if tc[5] else None,
+                "status": tc[6],
+                "created_at": tc[8],
+            })
+
+        audit_cursor = await self.db.execute(
+            "SELECT * FROM audit_logs WHERE request_id LIKE ? ORDER BY timestamp",
+            (f"%{session_id}%",)
+        )
+        audit_rows = []
+        for al in await audit_cursor.fetchall():
+            audit_rows.append({
+                "log_id": al[0],
+                "key_label": al[1],
+                "endpoint": al[2],
+                "method": al[3],
+                "status_code": al[4],
+                "client_ip": al[5],
+                "request_id": al[6],
+                "timestamp": al[7],
+            })
+
+        return {
+            "session_id": session_id,
+            "workspace": session["workspace"],
+            "model": session["model"],
+            "created_at": session["created_at"],
+            "updated_at": session["updated_at"],
+            "metadata": json.loads(session["metadata"]) if session["metadata"] else {},
+            "nodes": [
+                {
+                    "node_id": n["node_id"],
+                    "parent_node_id": n["parent_node_id"],
+                    "role": n["role"],
+                    "content": n["content"],
+                    "tool_calls": json.loads(n["tool_calls"]) if n["tool_calls"] else [],
+                    "tool_results": json.loads(n["tool_results"]) if n["tool_results"] else [],
+                    "compact_summary": n.get("compact_summary"),
+                    "created_at": n["created_at"],
+                }
+                for n in nodes
+            ],
+            "tool_calls": tool_calls_rows,
+            "audit_logs": audit_rows,
+        }

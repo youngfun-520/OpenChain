@@ -1,11 +1,11 @@
 """FastAPI routes for OpenChain API."""
-from fastapi import FastAPI, HTTPException, Security
+from fastapi import FastAPI, HTTPException, Security, Depends
 from pydantic import BaseModel
 from typing import Optional
 from openchain.session import SessionManager
 from openchain.agent.graph import build_graph
 from openchain.model_registry import ModelRegistry
-from openchain.api.auth import verify_api_key
+from openchain.api.auth import verify_api_key, require_scope
 
 
 app = FastAPI(title="OpenChain API")
@@ -64,6 +64,26 @@ async def get_session(session_id: str):
     return session
 
 
+class SessionUpdate(BaseModel):
+    model: Optional[str] = None
+
+
+@app.patch("/sessions/{session_id}", dependencies=[Security(verify_api_key)])
+async def update_session(
+    session_id: str,
+    update: SessionUpdate,
+    _: str = Depends(require_scope("write")),
+):
+    """Update session model."""
+    async with SessionManager() as sm:
+        try:
+            await sm.update_session_model(session_id, update.model)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        session = await sm.get_session(session_id)
+        return session
+
+
 @app.delete("/sessions/{session_id}", dependencies=[Security(verify_api_key)])
 async def delete_session(session_id: str):
     """Delete session."""
@@ -80,6 +100,20 @@ async def get_session_tree(session_id: str):
     async with SessionManager() as sm:
         nodes = await sm.get_session_tree(session_id)
     return {"session_id": session_id, "nodes": nodes}
+
+
+@app.get("/sessions/{session_id}/trace", dependencies=[Security(verify_api_key)])
+async def get_session_trace(
+    session_id: str,
+    _: str = Depends(require_scope("read")),
+):
+    """Get full session trace including nodes, tool calls, and audit logs."""
+    async with SessionManager() as sm:
+        try:
+            trace = await sm.export_trace(session_id)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e))
+        return trace
 
 
 @app.post("/sessions/{session_id}/fork", dependencies=[Security(verify_api_key)])
