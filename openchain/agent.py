@@ -1,6 +1,9 @@
 """CLI entry point for OpenChain agent."""
 
 import click
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 @click.group()
