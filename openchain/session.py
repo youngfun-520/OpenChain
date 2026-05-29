@@ -2,6 +2,7 @@
 import uuid
 import json
 from typing import Optional
+from langchain_core.messages import HumanMessage
 from openchain.db import Database
 from openchain.model_registry import ModelRegistry
 
@@ -288,4 +289,44 @@ class SessionManager:
             ],
             "tool_calls": tool_calls_rows,
             "audit_logs": audit_rows,
+        }
+
+    async def compact_session(self, session_id: str) -> dict:
+        """Compress session history by marking old messages with LLM-generated summary.
+        Does NOT delete any message_nodes — preserves full history."""
+        nodes = await self.get_session_nodes(session_id)
+        user_nodes = [n for n in nodes if n["role"] == "user"]
+        if len(user_nodes) <= 3:
+            return {"status": "skipped", "reason": "too_few_messages"}
+
+        # Group: first half = history to compress, second half = recent context
+        midpoint = len(user_nodes) // 2
+        history_nodes = user_nodes[:midpoint]
+        recent_nodes = user_nodes[midpoint:]
+
+        # Build history text for summarization
+        history_text = "\n".join(f"User: {n['content']}" for n in history_nodes)
+
+        # Call LLM to summarize
+        mr = ModelRegistry()
+        default_model = mr.get_default_model()
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(model=default_model, temperature=0)
+        summary_prompt = f"Summarize this conversation history concisely:\n{history_text}"
+        summary_result = await llm.ainvoke([HumanMessage(content=summary_prompt)])
+        summary_text = summary_result.content
+
+        # Mark old nodes as compacted (NOT deleted)
+        for node in history_nodes:
+            await self.db.execute(
+                "UPDATE message_nodes SET compact_summary = ? WHERE node_id = ?",
+                (summary_text, node["node_id"])
+            )
+        await self.db.commit()
+
+        return {
+            "status": "success",
+            "messages_before": len(history_nodes),
+            "messages_after": len(history_nodes),  # nodes NOT deleted, just marked
+            "summary": summary_text,
         }
