@@ -212,6 +212,101 @@ class SessionManager:
         """Get session tree structure (nodes with parent info)."""
         return await self.get_session_nodes(session_id)
 
+    async def add_steering_message(self, session_id: str, content: str, position: int = -1) -> dict:
+        """Add a steering message to the session's queue."""
+        cursor = await self.db.execute(
+            "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return {"status": "error", "message": "session not found"}
+        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        msg = {"id": str(uuid.uuid4()), "content": content}
+        if position < 0:
+            queue_data["steering"].append(msg)
+        else:
+            queue_data["steering"].insert(position, msg)
+        await self.db.execute(
+            "UPDATE sessions SET queue_messages = ? WHERE session_id = ?",
+            (json.dumps(queue_data), session_id)
+        )
+        await self.db.commit()
+        return {"status": "success", "message": msg}
+
+    async def get_steering_queue(self, session_id: str) -> list:
+        """Get all steering messages for a session."""
+        cursor = await self.db.execute(
+            "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return []
+        queue_data = json.loads(row[0] or '{"steering": []}')
+        return queue_data["steering"]
+
+    async def remove_steering_message(self, session_id: str, message_id: str) -> dict:
+        """Remove a steering message by id."""
+        cursor = await self.db.execute(
+            "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return {"status": "error", "message": "session not found"}
+        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        queue_data["steering"] = [m for m in queue_data["steering"] if m["id"] != message_id]
+        await self.db.execute(
+            "UPDATE sessions SET queue_messages = ? WHERE session_id = ?",
+            (json.dumps(queue_data), session_id)
+        )
+        await self.db.commit()
+        return {"status": "success"}
+
+    async def add_followup_message(self, session_id: str, content: str) -> dict:
+        """Add a follow-up message to the session's queue."""
+        cursor = await self.db.execute(
+            "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return {"status": "error", "message": "session not found"}
+        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        msg = {"id": str(uuid.uuid4()), "content": content}
+        queue_data["followup"].append(msg)
+        await self.db.execute(
+            "UPDATE sessions SET queue_messages = ? WHERE session_id = ?",
+            (json.dumps(queue_data), session_id)
+        )
+        await self.db.commit()
+        return {"status": "success", "message": msg}
+
+    async def get_followup_queue(self, session_id: str) -> list:
+        """Get all follow-up messages for a session."""
+        cursor = await self.db.execute(
+            "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return []
+        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        return queue_data["followup"]
+
+    async def remove_followup_message(self, session_id: str, message_id: str) -> dict:
+        """Remove a follow-up message by id."""
+        cursor = await self.db.execute(
+            "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            return {"status": "error", "message": "session not found"}
+        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        queue_data["followup"] = [m for m in queue_data["followup"] if m["id"] != message_id]
+        await self.db.execute(
+            "UPDATE sessions SET queue_messages = ? WHERE session_id = ?",
+            (json.dumps(queue_data), session_id)
+        )
+        await self.db.commit()
+        return {"status": "success"}
+
     async def get_session(self, session_id: str) -> Optional[dict]:
         """Get session by ID."""
         cursor = await self.db.execute(
