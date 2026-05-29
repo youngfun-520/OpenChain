@@ -64,13 +64,24 @@ python -m openchain.agent api
 ```
 
 端点:
-- `GET /health` - 健康检查
+- `GET /health` - 健康检查（无需认证）
 - `POST /sessions` - 创建会话
 - `GET /sessions/{id}` - 获取会话
 - `DELETE /sessions/{id}` - 删除会话
 - `GET /sessions/{id}/tree` - 获取会话树
 - `POST /sessions/{id}/fork` - 分叉会话
 - `POST /chat` - 发送消息
+
+所有端点（除 `/health`）需要 `X-API-Key` 头：
+
+```bash
+curl -H "X-API-Key: your-key" http://localhost:8000/sessions
+```
+
+环境变量配置：
+```bash
+OPENCHAIN_API_KEYS=key1,key2,key3
+```
 
 ## 测试
 

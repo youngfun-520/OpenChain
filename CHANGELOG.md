@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-05-29
+
+### Fixed
+
+- **Error Node Integration**
+  - `handle_error` node is now reachable in LangGraph
+  - `route_after_model` checks `error` state first before routing by `tool_calls`
+  - LLM failures, tool execution failures, and DB errors all set `state["error"]` to trigger error routing
+  - Retry logic with max 3 attempts and "Max retries exceeded" final state
+
+- **Sandbox Hardening**
+  - `BashTool` now properly `await proc.wait()` after `proc.kill()` to prevent zombie processes
+  - `GrepTool` replaced bare `except: pass` with explicit `PermissionError` and `Exception` handling
+
+### Added
+
+- **API Authentication**
+  - `X-API-Key` header authentication on all FastAPI endpoints except `/health`
+  - Keys configured via `OPENCHAIN_API_KEYS` environment variable (comma-separated)
+  - `openchain.api.auth` module with `verify_api_key` dependency
+
+- **SQLite Connection Lifecycle**
+  - Async context managers (`__aenter__`/`__aexit__`) on `Database` and `SessionManager`
+  - Guaranteed connection cleanup via `async with` pattern
+  - Routes updated to use `async with SessionManager() as sm:`
+  - No pooling needed for SQLite — explicit lifecycle management instead
+
+### Changed
+
+- Updated existing API tests to include `X-API-Key` header
+
+### Tests
+
+- 42 tests passed (up from 30 in v0.1.0)
+
 ## [0.1.0] - 2026-05-29
 
 ### Added
@@ -50,7 +85,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Known Issues
 
-- error node in LangGraph is unreachable (subsequent architecture improvement)
 - /compact feature not yet implemented (session compression for long conversations)
 - CLI auto-completion not yet implemented
 - Message queue feature not yet implemented
