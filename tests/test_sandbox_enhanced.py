@@ -34,7 +34,8 @@ def test_normal_files_allowed():
             f.write("hello")
         assert sc.check_path(normal_file) is True
 
-def test_read_only_mode_blocks_write():
+@pytest.mark.asyncio
+async def test_read_only_mode_blocks_write():
     """Write operations should be blocked in read-only mode."""
     from openchain.tools.file_tools import WriteFileTool
     from openchain.security import SecurityChecker
@@ -42,14 +43,11 @@ def test_read_only_mode_blocks_write():
     os.environ["OPENCHAIN_READONLY_WORKSPACE"] = "1"
 
     try:
-        # WriteFileTool should raise SecurityError or return error for write
         sc = SecurityChecker("/tmp")
         tool = WriteFileTool(sc)
-        # This should either raise SecurityError or return error status
-        result = tool.execute(path="/tmp/test.txt", content="hello")
-        if isinstance(result, dict):
-            assert result["status"] == "error"
-            assert "readonly" in result["message"].lower()
+        result = await tool.execute(path="/tmp/test.txt", content="hello")
+        assert result["status"] == "error"
+        assert "read-only" in result["message"] or "readonly" in result["message"].lower()
     finally:
         os.environ.pop("OPENCHAIN_READONLY_WORKSPACE", None)
 
