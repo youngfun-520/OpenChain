@@ -29,6 +29,8 @@ class WriteFileTool(Tool):
     async def execute(self, path: str, content: str, **kwargs) -> dict:
         if not self.sc.check_path(path):
             raise SecurityError(f"Path outside workspace: {path}")
+        if self.sc.readonly:
+            return {"status": "error", "message": "Workspace is in read-only mode"}
         try:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
             with open(path, "w") as f:

@@ -16,6 +16,22 @@ DANGEROUS_PATTERNS = [
     r"init\s+\d",
 ]
 
+SENSITIVE_PATTERNS = [
+    r"\.env$",
+    r"id_rsa",
+    r"secrets\.json$",
+    r"\.aws/credentials$",
+    r"\.gcp/.*\.json$",
+    r"\.docker/config\.json$",
+    r"\.git/config$",
+    r"\.npmrc$",
+    r"\.pypirc$",
+    r"\.netrc$",
+    r"\.pgpass$",
+    r"\.my\.cnf$",
+    r"config\.py$",
+]
+
 CONFIRMATION_COMMANDS = [
     "sudo",
     "rm",
@@ -37,12 +53,26 @@ class SecurityChecker:
         self.workspace_root = os.path.abspath(workspace_root)
 
     def check_path(self, path: str) -> bool:
-        """Check if path is within workspace using realpath to prevent symlink escapes."""
+        """Check if path is within workspace and not a sensitive file."""
+        # Normalize path
+        path = os.path.normpath(path)
+
+        # Check for sensitive file patterns first
+        for pattern in SENSITIVE_PATTERNS:
+            if re.search(pattern, path):
+                return False
+
+        # Then do the existing realpath check
         try:
             real_path = os.path.realpath(os.path.abspath(path))
             return real_path.startswith(os.path.realpath(self.workspace_root))
         except (OSError, ValueError):
             return False
+
+    @property
+    def readonly(self) -> bool:
+        """Check if workspace is in read-only mode."""
+        return os.environ.get("OPENCHAIN_READONLY_WORKSPACE", "") == "1"
 
     def check_bash_command(self, command: str) -> tuple[bool, Optional[str]]:
         """Check if bash command is safe."""

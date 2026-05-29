@@ -1,8 +1,18 @@
 """Bash execution tool."""
 import asyncio
+import os
 import uuid
 from openchain.tools.base import Tool
 from openchain.security import SecurityChecker, SecurityError
+
+
+RESTRICTED_COMMANDS = {
+    "curl", "wget", "nc", "netcat", "telnet", "ssh", "scp",
+    "ftp", "sftp", "aws", "gcloud", "az", "docker", "kubectl",
+    "terraform", "ansible", "python", "python3", "node", "ruby",
+    "perl", "bash", "sh", "zsh", "chmod", "chown", "setfacl",
+    "wireshark", "tcpdump", "nmap",
+}
 
 
 class BashTool(Tool):
@@ -25,6 +35,17 @@ class BashTool(Tool):
                 "reason": reason,
                 "message": f"Dangerous command: {reason}. Confirm to proceed."
             }
+
+        # Check sandbox mode restrictions
+        if os.environ.get("OPENCHAIN_SANDBOX_MODE") == "1":
+            cmd_parts = command.strip().split()
+            if cmd_parts:
+                cmd_base = cmd_parts[0].lower()
+                if cmd_base in RESTRICTED_COMMANDS:
+                    return {
+                        "status": "error",
+                        "message": f"Command '{cmd_base}' is restricted in sandbox mode"
+                    }
 
         try:
             proc = await asyncio.create_subprocess_shell(
