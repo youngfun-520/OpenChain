@@ -98,6 +98,7 @@ async def _run_chat(sm: SessionManager, workspace: str, model: str):
     graph = build_graph()
     ih = InputHelper()
     buffer = []
+    final_input = ""
 
     print("Welcome! Type /quit to exit.\n")
     while True:
