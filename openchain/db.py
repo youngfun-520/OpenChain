@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS message_nodes (
     tool_results TEXT,
     model TEXT,
     token_count INTEGER,
+    compact_summary TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (session_id) REFERENCES sessions(session_id),
     FOREIGN KEY (parent_node_id) REFERENCES message_nodes(node_id)
