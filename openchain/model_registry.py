@@ -11,6 +11,19 @@ PROVIDER_KEYS = {
     "deepseek": "DEEPSEEK_API_KEY",
 }
 
+PLACEHOLDER_VALUES = {"", "your_api_key_here", "your-key-here", "sk-ant-..."}
+PLACEHOLDER_PATTERNS = ["your_", "your-key", "placeholder"]
+
+
+def _is_valid_key(key: str) -> bool:
+    """Check if an API key looks real (not a placeholder)."""
+    if not key or key in PLACEHOLDER_VALUES:
+        return False
+    lower = key.lower()
+    if any(p in lower for p in PLACEHOLDER_PATTERNS):
+        return False
+    return True
+
 PROVIDER_MODELS = {
     "anthropic": ["claude-sonnet-4-7", "claude-opus-4-7", "claude-haiku-4-5"],
     "openai": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo"],
@@ -44,7 +57,8 @@ class ModelRegistry:
         """Discover available models based on API keys."""
         models = []
         for provider, key_env in PROVIDER_KEYS.items():
-            if os.getenv(key_env):
+            key = os.getenv(key_env, "")
+            if _is_valid_key(key):
                 models.extend(PROVIDER_MODELS.get(provider, []))
         return models
 
@@ -58,7 +72,19 @@ class ModelRegistry:
             return env_model
         if self._available_models:
             return self._available_models[0]
-        raise ModelNotFoundError("No model available. Please set API key in .env")
+        raise ModelNotFoundError(
+            "错误：未检测到有效的 API key\n\n"
+            "请选择以下任一方式配置：\n\n"
+            "方式 1: 编辑 .env 文件，设置以下任一 key：\n"
+            "  ANTHROPIC_API_KEY=sk-ant-...\n"
+            "  OPENAI_API_KEY=sk-...\n"
+            "  DEEPSEEK_API_KEY=sk-...\n\n"
+            "方式 2: 设置环境变量：\n"
+            "  export ANTHROPIC_API_KEY=sk-ant-...\n\n"
+            "获取 API key: https://console.anthropic.com/ (Anthropic)\n"
+            "获取 API key: https://platform.openai.com/ (OpenAI)\n"
+            "获取 API key: https://platform.deepseek.com/ (DeepSeek)"
+        )
 
     def resolve_model(self, requested: str, session_override: Optional[str] = None) -> str:
         """Return session_override if valid, else requested, else default."""

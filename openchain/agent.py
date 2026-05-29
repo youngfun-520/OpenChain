@@ -18,11 +18,16 @@ def chat(workspace: str):
     """Start interactive CLI chat mode."""
     from openchain.cli import _run_chat
     from openchain.session import SessionManager
-    from openchain.model_registry import ModelRegistry
+    from openchain.model_registry import ModelRegistry, ModelNotFoundError
     import asyncio
 
-    mr = ModelRegistry()
-    model = mr.get_default_model()
+    try:
+        mr = ModelRegistry()
+        model = mr.get_default_model()
+    except ModelNotFoundError as e:
+        click.echo(str(e))
+        return
+
     sm = SessionManager()
     asyncio.run(_run_chat(sm, workspace, model))
 

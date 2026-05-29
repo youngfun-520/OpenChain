@@ -23,11 +23,12 @@ def runner():
     return CliRunner()
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def mock_env(monkeypatch):
     """Provides mock environment variables for testing."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENCHAIN_API_KEYS", "test-key:read,write,admin")
 
 
 @pytest.fixture
