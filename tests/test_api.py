@@ -1,8 +1,12 @@
 """Tests for API."""
+import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient, ASGITransport
 from openchain.api.routes import app
+
+os.environ["OPENCHAIN_API_KEYS"] = "test-key-123"
+API_KEY_HEADER = {"X-API-Key": "test-key-123"}
 
 
 @pytest.mark.asyncio
@@ -21,7 +25,7 @@ async def test_api_create_session():
         transport=ASGITransport(app=app),
         base_url="http://test"
     ) as client:
-        response = await client.post("/sessions", json={"workspace": "/tmp"})
+        response = await client.post("/sessions", json={"workspace": "/tmp"}, headers=API_KEY_HEADER)
         assert response.status_code == 200
         data = response.json()
         assert "session_id" in data
@@ -43,12 +47,12 @@ async def test_api_chat():
             transport=ASGITransport(app=app),
             base_url="http://test"
         ) as client:
-            sess_resp = await client.post("/sessions", json={"workspace": "/tmp"})
+            sess_resp = await client.post("/sessions", json={"workspace": "/tmp"}, headers=API_KEY_HEADER)
             session_id = sess_resp.json()["session_id"]
             response = await client.post("/chat", json={
                 "message": "Hello",
                 "session_id": session_id
-            })
+            }, headers=API_KEY_HEADER)
             assert response.status_code == 200
             data = response.json()
             assert "response" in data or "node_id" in data
