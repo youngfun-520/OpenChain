@@ -62,9 +62,19 @@ class Database:
         await self.conn.executescript(SCHEMA_SQL)
         await self.conn.commit()
 
+    async def __aenter__(self) -> "Database":
+        """Async context manager entry."""
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit — always closes connection."""
+        await self.close()
+
     async def close(self):
         if self.conn:
             await self.conn.close()
+            self.conn = None
 
     def execute(self, sql: str, params: tuple = ()):
         return self.conn.execute(sql, params)

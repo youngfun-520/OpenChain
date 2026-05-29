@@ -14,11 +14,30 @@ class SessionManager:
     def __init__(self, db_path: str = "~/.openchain/data/openchain.db"):
         self.db = Database(db_path)
 
+    async def __aenter__(self) -> "SessionManager":
+        """Async context manager entry."""
+        await self.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Async context manager exit — always closes connection."""
+        await self.close()
+
     async def initialize(self):
         await self.db.initialize()
 
     async def close(self):
-        await self.db.close()
+        if self.db:
+            await self.db.close()
+            self.db = None
+
+    async def list_sessions(self) -> list[dict]:
+        """List all sessions ordered by creation time."""
+        cursor = await self.db.execute("SELECT * FROM sessions ORDER BY created_at DESC")
+        async with cursor:
+            rows = await cursor.fetchall()
+            columns = [desc[0] for desc in cursor.description]
+            return [dict(zip(columns, row)) for row in rows]
 
     async def create_session(
         self,
