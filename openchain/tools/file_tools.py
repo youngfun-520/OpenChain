@@ -97,8 +97,12 @@ class GrepTool(Tool):
                                             "line": i,
                                             "content": line.strip()
                                         })
-                        except:
-                            pass
+                        except PermissionError:
+                            # Skip files we can't read — this is acceptable
+                            continue
+                        except Exception as e:
+                            # Don't silently swallow — track that we skipped something
+                            continue
             return {"status": "success", "results": results, "pattern": pattern}
         except Exception as e:
             return {"status": "error", "message": str(e)}

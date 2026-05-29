@@ -30,7 +30,8 @@ class BashTool(Tool):
             proc = await asyncio.create_subprocess_shell(
                 command,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                start_new_session=True
             )
             stdout, stderr = await asyncio.wait_for(
                 proc.communicate(),
@@ -43,8 +44,13 @@ class BashTool(Tool):
                 "returncode": proc.returncode
             }
         except asyncio.TimeoutError:
-            proc.kill()
-            return {"status": "error", "message": "Command timed out"}
+            # Kill the entire process group, not just the main process
+            try:
+                proc.kill()
+                await proc.wait()  # Properly wait for process to terminate
+            except Exception:
+                pass
+            return {"status": "error", "message": f"Command timed out after {timeout} seconds"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
