@@ -36,6 +36,7 @@ def build_graph():
         route_after_model,
         {
             "execute_tools": "execute_tools",
+            "handle_error": "handle_error",
             "final_response": "final_response"
         }
     )

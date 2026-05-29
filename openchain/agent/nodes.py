@@ -52,11 +52,15 @@ async def node_call_model(state: AgentState) -> AgentState:
     if langchain_tools:
         llm = llm.bind_tools(langchain_tools)
 
-    result = await llm.ainvoke(state["messages"])
-    return {
-        **state,
-        "messages": state["messages"] + [result]
-    }
+    try:
+        result = await llm.ainvoke(state["messages"])
+        return {
+            **state,
+            "messages": state["messages"] + [result]
+        }
+    except Exception as e:
+        state["error"] = f"LLMError: {e}"
+        return state
 
 
 def _get_assistant_node_id(state: AgentState) -> str:
@@ -102,6 +106,7 @@ async def node_execute_tools(state: AgentState) -> AgentState:
         # Security check for API mode (bash disabled unless explicitly enabled)
         if not sc.check_api_mode(tool_name):
             result = {"status": "error", "message": f"Tool '{tool_name}' is disabled in API mode"}
+            state["error"] = f"SecurityError: Tool '{tool_name}' is disabled in API mode"
             tool_results.append({
                 "tool_call_id": call_id,
                 "tool_name": tool_name,
@@ -166,12 +171,15 @@ async def node_execute_tools(state: AgentState) -> AgentState:
             status = "success" if result.get("status") == "success" else "failure"
         except asyncio.TimeoutError:
             result = {"status": "error", "message": "Tool execution timed out"}
+            state["error"] = "TimeoutError: Tool execution timed out"
             status = "failure"
         except SecurityError as e:
             result = {"status": "error", "message": f"Security error: {str(e)}"}
+            state["error"] = f"SecurityError: {e}"
             status = "failure"
         except Exception as e:
             result = {"status": "error", "message": f"Execution error: {str(e)}"}
+            state["error"] = f"ToolExecutionError: {e}"
             status = "failure"
 
         tool_results.append({
@@ -236,10 +244,10 @@ async def node_save_message_node(state: AgentState) -> AgentState:
 
 async def node_handle_error(state: AgentState) -> AgentState:
     """Handle errors and decide retry or abort."""
-    new_retry_count = state.get("retry_count", 0) + 1
-    if new_retry_count >= 3:
-        return {**state, "error": None, "retry_count": new_retry_count}
-    return {**state, "error": None, "retry_count": new_retry_count}
+    current_retry = state.get("retry_count", 0)
+    if current_retry >= 3:
+        return {**state, "error": "Max retries exceeded", "retry_count": current_retry}
+    return {**state, "error": None, "retry_count": current_retry + 1}
 
 
 async def node_final_response(state: AgentState) -> AgentState:
@@ -247,8 +255,16 @@ async def node_final_response(state: AgentState) -> AgentState:
     return state
 
 
-def route_after_model(state: AgentState) -> Literal["execute_tools", "final_response"]:
-    """Route based on whether model returned tool calls."""
+def route_after_model(state: AgentState) -> Literal["execute_tools", "handle_error", "final_response"]:
+    """Route based on whether model returned tool calls or error."""
+    # Check error first — route to error handler if set
+    if state.get("error"):
+        return "handle_error"
+    # Then check if model requested tool execution
+    # Check state["tool_calls"] first (set by save_message_node from message.tool_calls)
+    if state.get("tool_calls"):
+        return "execute_tools"
+    # Also check last_message.tool_calls as fallback
     last_message = state["messages"][-1] if state["messages"] else None
     if hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "execute_tools"
