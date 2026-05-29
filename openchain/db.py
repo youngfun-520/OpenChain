@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     model TEXT,
-    metadata TEXT
+    metadata TEXT,
+    queue_messages TEXT   -- JSON: {"steering": [], "followup": []}
 );
 
 CREATE TABLE IF NOT EXISTS message_nodes (
