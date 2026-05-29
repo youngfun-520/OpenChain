@@ -5,6 +5,9 @@ from openchain.agent.graph import build_graph
 from openchain.model_registry import ModelRegistry
 
 
+REPL_COMMANDS = {}
+
+
 @click.command()
 @click.option("--workspace", default=".", help="Workspace directory")
 def chat(workspace: str):
@@ -18,6 +21,21 @@ def chat(workspace: str):
     sm = SessionManager()
     import asyncio
     asyncio.run(_run_chat(sm, workspace, model))
+
+
+async def cmd_compact(sm, session_id):
+    """Handle /compact command."""
+    result = await sm.compact_session(session_id)
+    if result["status"] == "success":
+        print(f"✓ Compacted {result['messages_before']} messages — summary: {result['summary'][:80]}...")
+    elif result["status"] == "skipped":
+        print(f"Skipped: {result['reason']}")
+    else:
+        print(f"Error: {result}")
+    return session_id
+
+
+REPL_COMMANDS["/compact"] = cmd_compact
 
 
 async def _run_chat(sm: SessionManager, workspace: str, model: str):
