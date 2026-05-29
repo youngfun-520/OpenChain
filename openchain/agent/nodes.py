@@ -11,6 +11,22 @@ from openchain.tools.web_tools import WebSearchTool, WebFetchTool
 from openchain.security import SecurityChecker, SecurityError
 
 
+from langchain_core.messages import SystemMessage
+
+async def node_steering_inject(state: AgentState) -> AgentState:
+    """Prepend steering messages as SystemMessage to the message list."""
+    messages = list(state["messages"])
+    steering = state.get("steering_queue", [])
+    for msg in reversed(steering):  # reversed so first in list appears first
+        messages.insert(0, SystemMessage(content=f"[Steering directive]: {msg['content']}"))
+    return {"messages": messages}
+
+
+async def node_finalize_followup(state: AgentState) -> AgentState:
+    """Clear followup queue after response — messages are presented to user as suggestions."""
+    return {"followup_queue": []}
+
+
 async def node_receive_input(state: AgentState) -> AgentState:
     """Receive user input and create a user message."""
     from langchain_core.messages import HumanMessage

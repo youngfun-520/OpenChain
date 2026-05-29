@@ -34,3 +34,7 @@ class AgentState(TypedDict):
 
     # Security context
     security_context: dict
+
+    # Message queues
+    steering_queue: list[dict] = []    # [{"id": str, "content": str}, ...]
+    followup_queue: list[dict] = []    # [{"id": str, "content": str}, ...]
