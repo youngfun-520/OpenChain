@@ -13,6 +13,33 @@ from openchain.security import SecurityChecker, SecurityError
 
 from langchain_core.messages import SystemMessage
 
+
+def _build_tool_result(call_id: str, tool_name: str, result: dict) -> dict:
+    """Build a standardized tool result dict."""
+    return {
+        "tool_call_id": call_id,
+        "tool_name": tool_name,
+        "result": result
+    }
+
+
+async def _log_tool_call(
+    db, call_id: str, node_id: str, session_id: str,
+    tool_name: str, args: dict, result: dict, status: str,
+    security_verified: int = 0
+) -> None:
+    """Insert a tool call audit log entry."""
+    await db.execute(
+        """INSERT INTO tool_calls
+           (call_id, node_id, session_id, tool_name, arguments, result, status,
+            security_verified, user_confirmed)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (call_id, node_id, session_id, tool_name,
+         json.dumps(args), json.dumps(result), status,
+         security_verified, 0)
+    )
+    await db.commit()
+
 async def node_steering_inject(state: AgentState) -> AgentState:
     """Prepend steering messages as SystemMessage to the message list."""
     messages = list(state["messages"])
@@ -123,22 +150,12 @@ async def node_execute_tools(state: AgentState) -> AgentState:
         if not sc.check_api_mode(tool_name):
             result = {"status": "error", "message": f"Tool '{tool_name}' is disabled in API mode"}
             state["error"] = f"SecurityError: Tool '{tool_name}' is disabled in API mode"
-            tool_results.append({
-                "tool_call_id": call_id,
-                "tool_name": tool_name,
-                "result": result
-            })
+            tool_results.append(_build_tool_result(call_id, tool_name, result))
             # Log to audit table
-            await db.execute(
-                """INSERT INTO tool_calls
-                   (call_id, node_id, session_id, tool_name, arguments, result, status,
-                    security_verified, user_confirmed)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (call_id, assistant_node_id, session_id, tool_name,
-                 json.dumps(args), json.dumps(result), "failure",
-                 1 if tool_name == "bash" else 0, 0)
+            await _log_tool_call(
+                db, call_id, assistant_node_id, session_id, tool_name,
+                args, result, "failure", security_verified=1 if tool_name == "bash" else 0
             )
-            await db.commit()
             continue
 
         # Get tool instance - create with correct security checker for workspace
@@ -162,20 +179,11 @@ async def node_execute_tools(state: AgentState) -> AgentState:
 
         if not tool_instance:
             result = {"status": "error", "message": f"Tool '{tool_name}' not found"}
-            tool_results.append({
-                "tool_call_id": call_id,
-                "tool_name": tool_name,
-                "result": result
-            })
-            await db.execute(
-                """INSERT INTO tool_calls
-                   (call_id, node_id, session_id, tool_name, arguments, result, status,
-                    security_verified, user_confirmed)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (call_id, assistant_node_id, session_id, tool_name,
-                 json.dumps(args), json.dumps(result), "failure", 0, 0)
+            tool_results.append(_build_tool_result(call_id, tool_name, result))
+            await _log_tool_call(
+                db, call_id, assistant_node_id, session_id, tool_name,
+                args, result, "failure", security_verified=0
             )
-            await db.commit()
             continue
 
         # Execute tool with timeout
@@ -198,23 +206,14 @@ async def node_execute_tools(state: AgentState) -> AgentState:
             state["error"] = f"ToolExecutionError: {e}"
             status = "failure"
 
-        tool_results.append({
-            "tool_call_id": call_id,
-            "tool_name": tool_name,
-            "result": result
-        })
+        tool_results.append(_build_tool_result(call_id, tool_name, result))
 
         # Log to audit table
         security_verified = 1 if tool_name == "bash" else 0
-        await db.execute(
-            """INSERT INTO tool_calls
-               (call_id, node_id, session_id, tool_name, arguments, result, status,
-                security_verified, user_confirmed)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (call_id, assistant_node_id, session_id, tool_name,
-             json.dumps(args), json.dumps(result), status, security_verified, 0)
+        await _log_tool_call(
+            db, call_id, assistant_node_id, session_id, tool_name,
+            args, result, status, security_verified
         )
-        await db.commit()
 
     await db.close()
 

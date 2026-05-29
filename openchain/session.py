@@ -1,7 +1,7 @@
 """Session management with message node tree."""
 import uuid
 import json
-from typing import Optional
+from typing import Optional, Any
 from langchain_core.messages import HumanMessage
 from openchain.db import Database
 from openchain.model_registry import ModelRegistry
@@ -13,8 +13,31 @@ class NodeNotFoundError(Exception):
 
 
 class SessionManager:
+    # Default queue_messages structure
+    _DEFAULT_QUEUE_MESSAGES = {"steering": [], "followup": []}
+
     def __init__(self, db_path: str = "~/.openchain/data/openchain.db"):
         self.db = Database(db_path)
+
+    @staticmethod
+    def _parse_queue_messages(value: Optional[str]) -> dict:
+        """Parse queue_messages JSON column with default structure."""
+        if value:
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                pass
+        return SessionManager._DEFAULT_QUEUE_MESSAGES.copy()
+
+    @staticmethod
+    def _parse_json_field(value: Optional[str], default: Any = None) -> Any:
+        """Parse a JSON field, returning default if null or decode fails."""
+        if value:
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                pass
+        return default
 
     async def __aenter__(self) -> "SessionManager":
         """Async context manager entry."""
@@ -197,8 +220,8 @@ class SessionManager:
                 role=old_node["role"],
                 content=old_node["content"],
                 parent_node_id=new_parent,
-                tool_calls=json.loads(old_node["tool_calls"]) if old_node["tool_calls"] else None,
-                tool_results=json.loads(old_node["tool_results"]) if old_node["tool_results"] else None,
+                tool_calls=SessionManager._parse_json_field(old_node["tool_calls"]),
+                tool_results=SessionManager._parse_json_field(old_node["tool_results"]),
                 model=old_node["model"]
             )
             old_to_new_id[old_node["node_id"]] = new_node["node_id"]
@@ -220,7 +243,7 @@ class SessionManager:
         row = await cursor.fetchone()
         if not row:
             return {"status": "error", "message": "session not found"}
-        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        queue_data = self._parse_queue_messages(row[0])
         msg = {"id": str(uuid.uuid4()), "content": content}
         if position < 0:
             queue_data["steering"].append(msg)
@@ -252,7 +275,7 @@ class SessionManager:
         row = await cursor.fetchone()
         if not row:
             return {"status": "error", "message": "session not found"}
-        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        queue_data = self._parse_queue_messages(row[0])
         queue_data["steering"] = [m for m in queue_data["steering"] if m["id"] != message_id]
         await self.db.execute(
             "UPDATE sessions SET queue_messages = ? WHERE session_id = ?",
@@ -269,7 +292,7 @@ class SessionManager:
         row = await cursor.fetchone()
         if not row:
             return {"status": "error", "message": "session not found"}
-        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        queue_data = self._parse_queue_messages(row[0])
         msg = {"id": str(uuid.uuid4()), "content": content}
         queue_data["followup"].append(msg)
         await self.db.execute(
@@ -287,7 +310,7 @@ class SessionManager:
         row = await cursor.fetchone()
         if not row:
             return []
-        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        queue_data = self._parse_queue_messages(row[0])
         return queue_data["followup"]
 
     async def remove_followup_message(self, session_id: str, message_id: str) -> dict:
@@ -298,7 +321,7 @@ class SessionManager:
         row = await cursor.fetchone()
         if not row:
             return {"status": "error", "message": "session not found"}
-        queue_data = json.loads(row[0] or '{"steering": [], "followup": []}')
+        queue_data = self._parse_queue_messages(row[0])
         queue_data["followup"] = [m for m in queue_data["followup"] if m["id"] != message_id]
         await self.db.execute(
             "UPDATE sessions SET queue_messages = ? WHERE session_id = ?",
@@ -319,39 +342,36 @@ class SessionManager:
             columns = [desc[0] for desc in cursor.description]
             return dict(zip(columns, row))
 
-    async def export_trace(self, session_id: str) -> dict:
-        """Export complete session trace: session metadata + all message nodes + tool calls + audit logs."""
-        session = await self.get_session(session_id)
-        if not session:
-            raise ValueError(f"Session {session_id} not found")
-
-        nodes = await self.get_session_nodes(session_id)
-
-        tool_calls_cursor = await self.db.execute(
+    async def _fetch_tool_calls(self, session_id: str) -> list[dict]:
+        """Fetch and parse tool calls for a session."""
+        cursor = await self.db.execute(
             "SELECT * FROM tool_calls WHERE session_id = ? ORDER BY created_at",
             (session_id,)
         )
-        tool_calls = await tool_calls_cursor.fetchall()
-        tool_calls_rows = []
-        for tc in tool_calls:
-            tool_calls_rows.append({
+        rows = await cursor.fetchall()
+        return [
+            {
                 "call_id": tc[0],
                 "node_id": tc[1],
                 "session_id": tc[2],
                 "tool_name": tc[3],
-                "arguments": json.loads(tc[4]) if tc[4] else {},
-                "result": json.loads(tc[5]) if tc[5] else None,
+                "arguments": self._parse_json_field(tc[4], {}),
+                "result": self._parse_json_field(tc[5]),
                 "status": tc[6],
                 "created_at": tc[8],
-            })
+            }
+            for tc in rows
+        ]
 
-        audit_cursor = await self.db.execute(
+    async def _fetch_audit_logs(self, session_id: str) -> list[dict]:
+        """Fetch audit logs for a session."""
+        cursor = await self.db.execute(
             "SELECT * FROM audit_logs WHERE request_id LIKE ? ORDER BY timestamp",
             (f"%{session_id}%",)
         )
-        audit_rows = []
-        for al in await audit_cursor.fetchall():
-            audit_rows.append({
+        rows = await cursor.fetchall()
+        return [
+            {
                 "log_id": al[0],
                 "key_label": al[1],
                 "endpoint": al[2],
@@ -360,7 +380,19 @@ class SessionManager:
                 "client_ip": al[5],
                 "request_id": al[6],
                 "timestamp": al[7],
-            })
+            }
+            for al in rows
+        ]
+
+    async def export_trace(self, session_id: str) -> dict:
+        """Export complete session trace: session metadata + all message nodes + tool calls + audit logs."""
+        session = await self.get_session(session_id)
+        if not session:
+            raise ValueError(f"Session {session_id} not found")
+
+        nodes = await self.get_session_nodes(session_id)
+        tool_calls_rows = await self._fetch_tool_calls(session_id)
+        audit_rows = await self._fetch_audit_logs(session_id)
 
         return {
             "session_id": session_id,
@@ -368,15 +400,15 @@ class SessionManager:
             "model": session["model"],
             "created_at": session["created_at"],
             "updated_at": session["updated_at"],
-            "metadata": json.loads(session["metadata"]) if session["metadata"] else {},
+            "metadata": self._parse_json_field(session["metadata"], {}),
             "nodes": [
                 {
                     "node_id": n["node_id"],
                     "parent_node_id": n["parent_node_id"],
                     "role": n["role"],
                     "content": n["content"],
-                    "tool_calls": json.loads(n["tool_calls"]) if n["tool_calls"] else [],
-                    "tool_results": json.loads(n["tool_results"]) if n["tool_results"] else [],
+                    "tool_calls": self._parse_json_field(n["tool_calls"], []),
+                    "tool_results": self._parse_json_field(n["tool_results"], []),
                     "compact_summary": n.get("compact_summary"),
                     "created_at": n["created_at"],
                 }
