@@ -46,12 +46,12 @@ async def node_steering_inject(state: AgentState) -> AgentState:
     steering = state.get("steering_queue", [])
     for msg in reversed(steering):  # reversed so first in list appears first
         messages.insert(0, SystemMessage(content=f"[Steering directive]: {msg['content']}"))
-    return {"messages": messages, "steering_queue": []}
+    return {**state, "messages": messages, "steering_queue": []}
 
 
 async def node_finalize_followup(state: AgentState) -> AgentState:
     """Clear followup queue after response — messages are presented to user as suggestions."""
-    return {"followup_queue": []}
+    return {**state, "followup_queue": []}
 
 
 async def node_receive_input(state: AgentState) -> AgentState:
@@ -64,34 +64,60 @@ async def node_receive_input(state: AgentState) -> AgentState:
 
 
 async def node_load_session_context(state: AgentState) -> AgentState:
-    """Load session history into messages list."""
+    """Load session history into messages list (prepend to existing)."""
     sm = SessionManager()
     await sm.initialize()
     nodes = await sm.get_session_nodes(state["session_id"])
     from langchain_core.messages import HumanMessage, AIMessage
-    messages = []
+    history = []
     for node in nodes:
         if node["role"] == "user":
-            messages.append(HumanMessage(content=node["content"]))
+            history.append(HumanMessage(content=node["content"]))
         elif node["role"] == "assistant":
-            messages.append(AIMessage(content=node["content"]))
+            history.append(AIMessage(content=node["content"]))
     await sm.close()
-    return {**state, "messages": messages}
+    # Prepend history to existing messages (from receive_input)
+    return {**state, "messages": history + state.get("messages", [])}
 
 
 async def node_call_model(state: AgentState) -> AgentState:
     """Call LLM with current messages and tools."""
+    import os
     from openchain.model_registry import ModelRegistry
-    from langchain_anthropic import ChatAnthropic
 
     mr = ModelRegistry()
     mr.validate_model_config(state["model"])
+    provider = mr.get_model_provider(state["model"])
 
     # Get tools from registry and convert to LangChain format
     registry = ToolRegistry()
     langchain_tools = registry.get_langchain_tools()
 
-    llm = ChatAnthropic(model=state["model"])
+    # Create LLM client based on provider
+    if provider == "anthropic":
+        from langchain_anthropic import ChatAnthropic
+        llm = ChatAnthropic(model=state["model"])
+    elif provider in ("openai", "deepseek", "minimax"):
+        from langchain_openai import ChatOpenAI
+        key_env = {
+            "openai": "OPENAI_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
+            "minimax": "MINIMAX_API_KEY",
+        }[provider]
+        base_env = {
+            "openai": None,
+            "deepseek": None,
+            "minimax": "MINIMAX_API_BASE",
+        }[provider]
+        llm = ChatOpenAI(
+            model=state["model"],
+            api_key=os.getenv(key_env),
+            base_url=os.getenv(base_env) if base_env else None,
+        )
+    else:
+        state["error"] = f"Unknown provider: {provider}"
+        return state
+
     if langchain_tools:
         llm = llm.bind_tools(langchain_tools)
 
@@ -272,7 +298,10 @@ async def node_final_response(state: AgentState) -> AgentState:
 
 def route_after_model(state: AgentState) -> Literal["execute_tools", "handle_error", "final_response"]:
     """Route based on whether model returned tool calls or error."""
-    # Check error first — route to error handler if set
+    # Check retry count first — if max retries reached, end to prevent infinite loop
+    if state.get("retry_count", 0) >= 3:
+        return "final_response"
+    # Check error — route to error handler if set
     if state.get("error"):
         return "handle_error"
     # Then check if model requested tool execution
