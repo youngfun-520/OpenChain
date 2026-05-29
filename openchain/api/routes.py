@@ -75,6 +75,13 @@ async def update_session(
     _: str = Depends(require_scope("write")),
 ):
     """Update session model."""
+    if update.model is None:
+        raise HTTPException(status_code=400, detail="Model cannot be null")
+    mr = ModelRegistry()
+    try:
+        mr.validate_model_config(update.model)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
     async with SessionManager() as sm:
         try:
             await sm.update_session_model(session_id, update.model)

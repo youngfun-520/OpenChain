@@ -3,6 +3,7 @@ import uuid
 import json
 from typing import Optional
 from openchain.db import Database
+from openchain.model_registry import ModelRegistry
 
 
 class NodeNotFoundError(Exception):
@@ -61,19 +62,11 @@ class SessionManager:
 
     async def update_session_model(self, session_id: str, model: str) -> None:
         """Update the model for an existing session."""
-        cursor = await self.db.execute(
-            "SELECT metadata FROM sessions WHERE session_id = ?", (session_id,)
-        )
-        row = await cursor.fetchone()
-        if not row:
-            raise ValueError(f"Session {session_id} not found")
-        meta = json.loads(row[0] or "{}")
-        if "model_config" not in meta:
-            meta["model_config"] = {}
-        meta["model_config"]["model"] = model
+        mr = ModelRegistry()
+        mr.validate_model_config(model)
         await self.db.execute(
-            "UPDATE sessions SET model = ?, metadata = ? WHERE session_id = ?",
-            (model, json.dumps(meta), session_id)
+            "UPDATE sessions SET model = ? WHERE session_id = ?",
+            (model, session_id)
         )
         await self.db.commit()
 
@@ -184,19 +177,16 @@ class SessionManager:
         Creates a new session and copies the ancestor chain of node_id.
         """
         ancestor_chain = await self.get_ancestor_chain(node_id)
-        new_session = await self.create_session(workspace="")
-        # Load original session to get workspace
+        # Load original session to get workspace and model
         cursor = await self.db.execute(
-            "SELECT workspace FROM sessions WHERE session_id = ?", (session_id,)
+            "SELECT workspace, model FROM sessions WHERE session_id = ?", (session_id,)
         )
         async with cursor:
             row = await cursor.fetchone()
-            if row:
-                await self.db.execute(
-                    "UPDATE sessions SET workspace = ? WHERE session_id = ?",
-                    (row[0], new_session["session_id"])
-                )
-                await self.db.commit()
+            if not row:
+                raise ValueError(f"Session {session_id} not found")
+            workspace, model = row[0], row[1]
+        new_session = await self.create_session(workspace=workspace, model=model)
         # Copy ancestor chain to new session with new node_ids
         old_to_new_id = {}
         for old_node in ancestor_chain:
