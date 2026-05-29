@@ -171,5 +171,5 @@ async def chat(req: ChatRequest):
     return {
         "session_id": session_id,
         "response": response,
-        "node_id": None
+        "node_id": result.get("current_assistant_node_id")
     }

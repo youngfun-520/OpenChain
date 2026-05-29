@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-05-30
+
+### Fixed
+
+- **CLI Response Display** — `<think>` tag content now shown in a thinking box; actual assistant response always displayed (B2)
+- **REPL Command Dispatch** — `/compact` now properly routes to `cmd_compact` handler instead of being sent to LLM; unknown commands show "Unknown command" message (B3)
+- **`/help` Command** — Lists all available commands; previously advertised but unimplemented (B4)
+- **Security Path Resolution** — `"."` and `"./"` in `check_path()` now resolve relative to workspace root instead of CWD, fixing false SecurityError (B5)
+- **API `/chat` node_id** — Returns actual `current_assistant_node_id` instead of hardcoded `None` (B6/B9)
+- **`--verbose` Flag** — Debug prints gated behind `--verbose` flag; silent by default (B7)
+- **Dead Code Removal** — `route_after_model` had 14 unreachable lines after `return` statement (B8)
+- **Import Fix** — Removed import of non-existent `route_after_execute` from `graph.py` (B1)
+- **`/fork` Crash Fix** — Node ID no longer truncated in `/tree` output (shows full UUID); `/fork` errors wrapped in try/except to prevent CLI crash (B10)
+
 ## [0.2.0] - 2026-05-29
 
 ### Features

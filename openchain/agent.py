@@ -14,7 +14,8 @@ def cli():
 
 @cli.command()
 @click.option("--workspace", default=".", help="Workspace directory")
-def chat(workspace: str):
+@click.option("--verbose", is_flag=True, help="Show debug information")
+def chat(workspace: str, verbose: bool = False):
     """Start interactive CLI chat mode."""
     from openchain.cli import _run_chat
     from openchain.session import SessionManager
@@ -29,7 +30,7 @@ def chat(workspace: str):
         return
 
     sm = SessionManager()
-    asyncio.run(_run_chat(sm, workspace, model))
+    asyncio.run(_run_chat(sm, workspace, model, verbose=verbose))
 
 
 @cli.command()

@@ -306,19 +306,20 @@ async def node_final_response(state: AgentState) -> AgentState:
 
 
 def route_after_model(state: AgentState) -> Literal["execute_tools", "handle_error", "final_response"]:
-    """Route based on whether model returned tool calls or error."""
-    # Check retry count first — if max retries reached, end to prevent infinite loop
+    """Route after LLM call: tool_calls -> execute_tools; error -> handle_error; retry exhausted -> final_response."""
+    # If tool results pending (tools just executed), go to final_response
+    if state.get("tool_results"):
+        return "final_response"
+    # Check retry count
     if state.get("retry_count", 0) >= 3:
         return "final_response"
-    # Check error — route to error handler if set
+    # Check error
     if state.get("error"):
         return "handle_error"
-    # Then check if model requested tool execution
-    # Check state["tool_calls"] first (set by save_message_node from message.tool_calls)
+    # Check tool_calls from LLM response
     if state.get("tool_calls"):
         return "execute_tools"
-    # Also check last_message.tool_calls as fallback
     last_message = state["messages"][-1] if state["messages"] else None
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+    if last_message and hasattr(last_message, "tool_calls") and last_message.tool_calls:
         return "execute_tools"
     return "final_response"

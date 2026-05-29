@@ -8,7 +8,7 @@ from openchain.model_registry import ModelRegistry
 
 
 REPL_COMMANDS = {}
-REPL_COMMANDS_LIST = ["/quit", "/new", "/tree", "/fork", "/compact"]
+REPL_COMMANDS_LIST = ["/quit", "/new", "/tree", "/fork", "/compact", "/help"]
 
 
 class InputHelper:
@@ -61,7 +61,8 @@ def get_completions(word: str) -> list[str]:
 
 @click.command()
 @click.option("--workspace", default=".", help="Workspace directory")
-def chat(workspace: str):
+@click.option("--verbose", is_flag=True, help="Show debug information")
+def chat(workspace: str, verbose: bool = False):
     """Start interactive chat mode."""
     click.echo(f"OpenChain Chat - Workspace: {workspace}")
     click.echo("Type /help for commands, /quit to exit")
@@ -71,7 +72,7 @@ def chat(workspace: str):
 
     sm = SessionManager()
     import asyncio
-    asyncio.run(_run_chat(sm, workspace, model))
+    asyncio.run(_run_chat(sm, workspace, model, verbose=verbose))
 
 
 async def cmd_compact(sm, session_id):
@@ -89,7 +90,7 @@ async def cmd_compact(sm, session_id):
 REPL_COMMANDS["/compact"] = cmd_compact
 
 
-async def _run_chat(sm: SessionManager, workspace: str, model: str):
+async def _run_chat(sm: SessionManager, workspace: str, model: str, verbose: bool = False):
     await sm.initialize()
     session = await sm.create_session(workspace=workspace, model=model)
     session_id = session["session_id"]
@@ -129,20 +130,40 @@ async def _run_chat(sm: SessionManager, workspace: str, model: str):
         elif final_input == "/tree":
             nodes = await sm.get_session_tree(session_id)
             for n in nodes:
-                click.echo(f"  {n['node_id'][:8]} [{n['role']}] {n['content'][:50]}...")
+                click.echo(f"  {n['node_id']} [{n['role']}] {n['content'][:60]}...")
             continue
         elif final_input.startswith("/fork"):
             parts = final_input.split()
             if len(parts) == 2:
-                forked = await sm.fork_session(session_id, parts[1])
-                session_id = forked["session_id"]
-                click.echo(f"Forked to: {session_id}")
+                try:
+                    forked = await sm.fork_session(session_id, parts[1])
+                    session_id = forked["session_id"]
+                    click.echo(f"Forked to: {session_id}")
+                except Exception as e:
+                    click.echo(f"Error: {e}")
             continue
+        elif final_input == "/help":
+            click.echo("\nAvailable commands:")
+            for cmd in REPL_COMMANDS_LIST:
+                click.echo(f"  {cmd}")
+            click.echo()
+            continue
+        elif final_input.startswith("/"):
+            # Check registered REPL commands (like /compact)
+            base_cmd = final_input.split()[0] if " " in final_input else final_input
+            handler = REPL_COMMANDS.get(base_cmd)
+            if handler:
+                session_id = await handler(sm, session_id) or session_id
+                continue
+            else:
+                click.echo(f"Unknown command: {final_input}")
+                continue
 
         # Invoke graph for single turn
         import time
         t0 = time.time()
-        click.echo("[DEBUG] calling graph.ainvoke()...")
+        if verbose:
+            click.echo("[DEBUG] calling graph.ainvoke()...")
         result = await graph.ainvoke({
             "session_id": session_id,
             "workspace": workspace,
@@ -161,8 +182,28 @@ async def _run_chat(sm: SessionManager, workspace: str, model: str):
         num_messages = len(result.get("messages", []))
         tool_results = result.get("tool_results", [])
         error = result.get("error")
-        click.echo(f"[DEBUG] done in {elapsed:.1f}s | messages={num_messages} tool_results={len(tool_results)} error={error}")
+        if verbose:
+            click.echo(f"[DEBUG] done in {elapsed:.1f}s | messages={num_messages} tool_results={len(tool_results)} error={error}")
         response = result["messages"][-1].content if result["messages"] else ""
+        response_text = response
+
+        # Parse <think> tags — show thinking in dim style, rest as response
+        think_content = ""
+        import re as _re
+        m = _re.match(r"<think>(.*?)</think>\s*(.*)", response, re.DOTALL)
+        if m:
+            think_content = m.group(1).strip()
+            response_text = m.group(2).strip()
+        elif response.startswith("<think>"):
+            think_content = response[len("<think>"):].strip()
+            response_text = ""
+
+        if think_content:
+            click.echo(f"\n┌─ Thinking ──────────────────────────────")
+            for line in think_content.split("\n"):
+                click.echo(f"│ {line}")
+            click.echo(f"└─────────────────────────────────────────")
+
         # Show tool results clearly
         if tool_results:
             for tr in tool_results:
@@ -175,8 +216,10 @@ async def _run_chat(sm: SessionManager, workspace: str, model: str):
                     click.echo(f"\n[{name}] {res['content'][:200]}")
                 elif res.get("status") == "error":
                     click.echo(f"\n[{name}] Error: {res.get('message', 'unknown')}")
-        if response and not response.startswith("<think>"):
-            click.echo(f"\nAssistant: {response}")
+                elif tr.get("result"):
+                    click.echo(f"\n[{name}] {str(res)[:300]}")
+        if response_text:
+            click.echo(f"\nAssistant: {response_text}")
 
 
     await sm.close()
