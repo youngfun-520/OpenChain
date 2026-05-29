@@ -19,7 +19,7 @@ async def node_steering_inject(state: AgentState) -> AgentState:
     steering = state.get("steering_queue", [])
     for msg in reversed(steering):  # reversed so first in list appears first
         messages.insert(0, SystemMessage(content=f"[Steering directive]: {msg['content']}"))
-    return {"messages": messages}
+    return {"messages": messages, "steering_queue": []}
 
 
 async def node_finalize_followup(state: AgentState) -> AgentState:
