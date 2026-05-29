@@ -48,6 +48,17 @@ CREATE INDEX IF NOT EXISTS idx_nodes_session ON message_nodes(session_id);
 CREATE INDEX IF NOT EXISTS idx_nodes_parent ON message_nodes(parent_node_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_session ON tool_calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_node ON tool_calls(node_id);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    log_id TEXT PRIMARY KEY,
+    key_label TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    method TEXT NOT NULL,
+    status_code INTEGER,
+    client_ip TEXT,
+    request_id TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 """
 
 
