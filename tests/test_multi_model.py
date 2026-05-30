@@ -3,7 +3,7 @@ import pytest
 from openchain.model_registry import ModelRegistry
 
 
-def test_resolve_model_with_override():
+def test_resolve_model_with_override(mock_env):
     """resolve_model should prefer session override if valid."""
     mr = ModelRegistry()
     # If no override, returns requested

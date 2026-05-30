@@ -50,8 +50,9 @@ def reset_registry(workspace: str = "."):
 
     _default_security_checker = SecurityChecker(workspace)
 
-    # Re-create all tools with new security checker
-    _registry = ToolRegistry()
+    # Re-create all tools with new security checker (force new singleton)
+    _registry = ToolRegistry(force_new=True)
+    _registry._default_workspace = workspace
 
     _registry.register(ReadFileTool(_default_security_checker))
     _registry.register(WriteFileTool(_default_security_checker))

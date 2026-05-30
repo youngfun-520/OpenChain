@@ -3,6 +3,7 @@ from langgraph.graph import StateGraph, END
 from openchain.agent.state import AgentState
 from openchain.agent.nodes import (
     node_receive_input,
+    node_save_user_message,
     node_load_session_context,
     node_call_model,
     node_execute_tools,
@@ -21,6 +22,7 @@ def build_graph():
 
     # Nodes
     workflow.add_node("receive_input", node_receive_input)
+    workflow.add_node("save_user_message", node_save_user_message)
     workflow.add_node("load_session_context", node_load_session_context)
     workflow.add_node("steering_inject", node_steering_inject)
     workflow.add_node("call_model", node_call_model)
@@ -34,7 +36,8 @@ def build_graph():
     workflow.set_entry_point("receive_input")
 
     # Main flow
-    workflow.add_edge("receive_input", "load_session_context")
+    workflow.add_edge("receive_input", "save_user_message")
+    workflow.add_edge("save_user_message", "load_session_context")
     workflow.add_edge("load_session_context", "steering_inject")
     workflow.add_edge("steering_inject", "call_model")
 

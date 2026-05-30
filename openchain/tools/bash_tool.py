@@ -75,9 +75,9 @@ class BashTool(Tool):
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def confirm(self, call_id: str) -> dict:
-        """Confirm a pending dangerous command."""
+    async def confirm(self, call_id: str) -> dict:
+        """Confirm a pending dangerous command (async)."""
         if call_id not in self.pending_confirmations:
             return {"status": "error", "message": "Confirmation not found"}
         cmd = self.pending_confirmations.pop(call_id)
-        return asyncio.run(self.execute(**cmd))
+        return await self.execute(**cmd)

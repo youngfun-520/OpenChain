@@ -77,20 +77,30 @@ class SessionManager:
             (session_id, workspace, model)
         )
         await self.db.commit()
-        return {
-            "session_id": session_id,
-            "workspace": workspace,
-            "model": model,
-            "created_at": None
-        }
+        # Read back to get actual created_at timestamp from DB
+        cursor = await self.db.execute(
+            "SELECT * FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        async with cursor:
+            row = await cursor.fetchone()
+            columns = [desc[0] for desc in cursor.description]
+            return dict(zip(columns, row))
 
     async def update_session_model(self, session_id: str, model: str) -> None:
         """Update the model for an existing session."""
         mr = ModelRegistry()
         mr.validate_model_config(model)
         await self.db.execute(
-            "UPDATE sessions SET model = ? WHERE session_id = ?",
+            "UPDATE sessions SET model = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
             (model, session_id)
+        )
+        await self.db.commit()
+
+    async def touch_session(self, session_id: str) -> None:
+        """Update the updated_at timestamp for a session."""
+        await self.db.execute(
+            "UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE session_id = ?",
+            (session_id,)
         )
         await self.db.commit()
 
@@ -342,26 +352,36 @@ class SessionManager:
             columns = [desc[0] for desc in cursor.description]
             return dict(zip(columns, row))
 
+    async def _get_session_model(self, session_id: str) -> Optional[str]:
+        """Get the model configured for a session."""
+        cursor = await self.db.execute(
+            "SELECT model FROM sessions WHERE session_id = ?", (session_id,)
+        )
+        async with cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
     async def _fetch_tool_calls(self, session_id: str) -> list[dict]:
         """Fetch and parse tool calls for a session."""
         cursor = await self.db.execute(
             "SELECT * FROM tool_calls WHERE session_id = ? ORDER BY created_at",
             (session_id,)
         )
-        rows = await cursor.fetchall()
-        return [
-            {
-                "call_id": tc[0],
-                "node_id": tc[1],
-                "session_id": tc[2],
-                "tool_name": tc[3],
-                "arguments": self._parse_json_field(tc[4], {}),
-                "result": self._parse_json_field(tc[5]),
-                "status": tc[6],
-                "created_at": tc[8],
-            }
-            for tc in rows
-        ]
+        async with cursor:
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "call_id": tc[0],
+                    "node_id": tc[1],
+                    "session_id": tc[2],
+                    "tool_name": tc[3],
+                    "arguments": self._parse_json_field(tc[4], {}),
+                    "result": self._parse_json_field(tc[5]),
+                    "status": tc[6],
+                    "created_at": tc[8],
+                }
+                for tc in rows
+            ]
 
     async def _fetch_audit_logs(self, session_id: str) -> list[dict]:
         """Fetch audit logs for a session."""
@@ -369,20 +389,21 @@ class SessionManager:
             "SELECT * FROM audit_logs WHERE request_id LIKE ? ORDER BY timestamp",
             (f"%{session_id}%",)
         )
-        rows = await cursor.fetchall()
-        return [
-            {
-                "log_id": al[0],
-                "key_label": al[1],
-                "endpoint": al[2],
-                "method": al[3],
-                "status_code": al[4],
-                "client_ip": al[5],
-                "request_id": al[6],
-                "timestamp": al[7],
-            }
-            for al in rows
-        ]
+        async with cursor:
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "log_id": al[0],
+                    "key_label": al[1],
+                    "endpoint": al[2],
+                    "method": al[3],
+                    "status_code": al[4],
+                    "client_ip": al[5],
+                    "request_id": al[6],
+                    "timestamp": al[7],
+                }
+                for al in rows
+            ]
 
     async def export_trace(self, session_id: str) -> dict:
         """Export complete session trace: session metadata + all message nodes + tool calls + audit logs."""
@@ -434,11 +455,37 @@ class SessionManager:
         # Build history text for summarization
         history_text = "\n".join(f"User: {n['content']}" for n in history_nodes)
 
-        # Call LLM to summarize
+        # Call LLM to summarize using the session's model provider
         mr = ModelRegistry()
         default_model = mr.get_default_model()
-        from langchain_anthropic import ChatAnthropic
-        llm = ChatAnthropic(model=default_model, temperature=0)
+        session_model = model if (model := await self._get_session_model(session_id)) else default_model
+        provider = mr.get_model_provider(session_model)
+
+        if provider == "anthropic":
+            from langchain_anthropic import ChatAnthropic
+            llm = ChatAnthropic(model=session_model, temperature=0)
+        elif provider in ("openai", "deepseek", "minimax"):
+            from langchain_openai import ChatOpenAI
+            key_env = {
+                "openai": "OPENAI_API_KEY",
+                "deepseek": "DEEPSEEK_API_KEY",
+                "minimax": "MINIMAX_API_KEY",
+            }[provider]
+            base_env = {
+                "openai": None,
+                "deepseek": None,
+                "minimax": "MINIMAX_API_BASE",
+            }[provider]
+            import os
+            llm = ChatOpenAI(
+                model=session_model,
+                api_key=os.getenv(key_env),
+                base_url=os.getenv(base_env) if base_env else None,
+                temperature=0,
+            )
+        else:
+            return {"status": "error", "reason": f"Unknown provider: {provider}"}
+
         summary_prompt = f"Summarize this conversation history concisely:\n{history_text}"
         summary_result = await llm.ainvoke([HumanMessage(content=summary_prompt)])
         summary_text = summary_result.content

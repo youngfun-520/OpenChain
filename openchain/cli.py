@@ -187,6 +187,11 @@ async def _run_chat(sm: SessionManager, workspace: str, model: str, verbose: boo
         response = result["messages"][-1].content if result["messages"] else ""
         response_text = response
 
+        # Show error if present and no response text to display
+        if error and not response_text:
+            click.echo(f"\n错误: {error}")
+            continue
+
         # Parse <think> tags — show thinking in dim style, rest as response
         think_content = ""
         import re as _re

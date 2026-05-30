@@ -63,6 +63,24 @@ async def node_receive_input(state: AgentState) -> AgentState:
     }
 
 
+async def node_save_user_message(state: AgentState) -> AgentState:
+    """Persist user input message to the database."""
+    from openchain.db import Database
+    db = Database()
+    await db.initialize()
+    node_id = str(uuid.uuid4())
+    await db.execute(
+        """INSERT INTO message_nodes
+           (node_id, session_id, parent_node_id, role, content)
+           VALUES (?, ?, ?, ?, ?)""",
+        (node_id, state["session_id"], state.get("parent_node_id"),
+         "user", state["input_message"])
+    )
+    await db.commit()
+    await db.close()
+    return {**state, "parent_node_id": node_id}
+
+
 async def node_load_session_context(state: AgentState) -> AgentState:
     """Load session history into messages list (prepend to existing)."""
     sm = SessionManager()
@@ -91,6 +109,12 @@ async def node_call_model(state: AgentState) -> AgentState:
 
     # Get tools from registry and convert to LangChain format
     registry = ToolRegistry()
+    # Ensure registry security checker matches workspace
+    workspace = state.get("workspace", ".")
+    cur_ws = getattr(registry, "_default_workspace", None)
+    if cur_ws is None or os.path.abspath(workspace) != os.path.abspath(cur_ws):
+        from openchain.tools import reset_registry
+        reset_registry(workspace)
     langchain_tools = registry.get_langchain_tools()
 
     # Create LLM client based on provider
@@ -285,6 +309,7 @@ async def node_save_message_node(state: AgentState) -> AgentState:
         )
         current_assistant_node_id = node["node_id"]
 
+    await sm.touch_session(state["session_id"])
     await sm.close()
     return {
         **state,

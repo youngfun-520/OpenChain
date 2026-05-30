@@ -58,8 +58,21 @@ def _is_blocked_url(url: str) -> tuple[bool, str]:
                 return True, f"Blocked IP range: {cidr}"
         return False, ""
     except ValueError:
-        # Not an IP address, try to resolve it (could be slow - consider caching)
-        pass
+        # Not an IP address, try to resolve it
+        try:
+            import socket
+            addrs = socket.getaddrinfo(host, None)
+            for family, type_, proto, canonname, sockaddr in addrs:
+                addr = sockaddr[0]
+                try:
+                    ip = ipaddress.ip_address(addr)
+                    for cidr in BLOCKED_IP_RANGES:
+                        if ip in ipaddress.ip_network(cidr):
+                            return True, f"Blocked IP range: {cidr} (resolved from {host})"
+                except ValueError:
+                    continue
+        except Exception:
+            pass  # If resolution fails, let it proceed (will fail at fetch time)
 
     return False, ""
 

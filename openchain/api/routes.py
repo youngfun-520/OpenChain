@@ -1,14 +1,37 @@
 """FastAPI routes for OpenChain API."""
 from fastapi import FastAPI, HTTPException, Security, Depends
+from fastapi import Request
 from pydantic import BaseModel
 from typing import Optional
 from openchain.session import SessionManager
 from openchain.agent.graph import build_graph
 from openchain.model_registry import ModelRegistry
 from openchain.api.auth import verify_api_key, require_scope
+from openchain.api.request_audit import log_audit
 
 
 app = FastAPI(title="OpenChain API")
+
+
+@app.middleware("http")
+async def audit_middleware(request: Request, call_next):
+    """Log all authenticated API requests to audit_logs."""
+    import uuid
+    request_id = str(uuid.uuid4())
+    response = await call_next(request)
+    # Only log non-health endpoints
+    if request.url.path != "/health":
+        api_key = request.headers.get("X-API-Key", "")
+        key_label = api_key if api_key else "anonymous"
+        await log_audit(
+            key_label=key_label,
+            endpoint=request.url.path,
+            method=request.method,
+            status_code=response.status_code,
+            client_ip=request.client.host if request.client else "unknown",
+            request_id=request_id,
+        )
+    return response
 
 
 class CreateSessionRequest(BaseModel):
