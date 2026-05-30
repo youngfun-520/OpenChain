@@ -64,11 +64,8 @@ class SecurityChecker:
 
         # Then do the existing realpath check
         try:
-            # Resolve relative paths (".", "./") relative to workspace root
-            if path in (".", "./"):
-                real_path = os.path.realpath(self.workspace_root)
-            else:
-                real_path = os.path.realpath(os.path.abspath(path))
+            # Resolve relative paths relative to workspace root
+            real_path = os.path.realpath(os.path.join(self.workspace_root, path))
             return real_path.startswith(os.path.realpath(self.workspace_root))
         except (OSError, ValueError):
             return False

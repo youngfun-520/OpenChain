@@ -184,3 +184,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - aiosqlite>=0.20.0
 - click>=8.0.0
 - python-dotenv>=1.0.0
+## [0.2.3] - 2026-05-30
+
+### Fixed
+
+- **Tool Parameter Schemas (B27)** — `to_langchain_tool()` now generates proper `args_schema` via `pydantic.create_model`, so LLM knows which arguments each tool requires. Previously all tools accepted `**kwargs` with no declared parameters, causing `WriteFileTool.execute() missing path` error.
+- **Path Resolution for Bare Filenames (B25)** — `check_path()` now resolves ALL relative paths (`test.txt`, `./file`) relative to workspace root instead of CWD, fixing false SecurityError on read/write/list operations with relative paths.

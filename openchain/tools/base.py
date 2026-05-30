@@ -17,11 +17,35 @@ class Tool(ABC):
         pass
 
     def to_langchain_tool(self):
-        """Convert to LangChain tool format."""
+        """Convert to LangChain tool format with proper parameter schema."""
+        import inspect
         from langchain_core.tools import tool
-        @tool(self.name, description=self.description)
-        async def wrapper(**kwargs):
+        from pydantic import BaseModel, Field, create_model
+        from typing import Any
+
+        # Get the execute method signature to build argument schema
+        sig = inspect.signature(self.execute)
+        params = list(sig.parameters.values())
+        # Skip 'self' and 'kwargs'
+        tool_params = [p for p in params if p.name not in ("self", "kwargs")]
+
+        if not tool_params:
+            @tool(self.name, description=self.description)
+            async def wrapper(**kwargs: Any) -> dict:
+                return await self.execute(**kwargs)
+            return wrapper
+
+        # Build dynamic args_schema using pydantic create_model
+        fields = {}
+        for p in tool_params:
+            field_type = str if p.annotation is inspect.Parameter.empty else p.annotation
+            fields[p.name] = (field_type, Field(description=f"Argument: {p.name}"))
+        ToolInput = create_model("ToolInput", **fields)  # type: ignore
+
+        @tool(self.name, description=self.description, args_schema=ToolInput)
+        async def wrapper(*args: Any, **kwargs: Any) -> dict:
             return await self.execute(**kwargs)
+
         return wrapper
 
 
