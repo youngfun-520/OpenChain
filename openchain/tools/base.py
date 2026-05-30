@@ -60,8 +60,6 @@ class ToolRegistry:
             instance = super().__new__(cls)
             instance._tools = {}
             instance._default_workspace = "."
-            if force_new:
-                return instance
             cls._instance = instance
         return cls._instance
 

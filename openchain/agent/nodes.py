@@ -115,6 +115,7 @@ async def node_call_model(state: AgentState) -> AgentState:
     if cur_ws is None or os.path.abspath(workspace) != os.path.abspath(cur_ws):
         from openchain.tools import reset_registry
         reset_registry(workspace)
+        registry = ToolRegistry()  # Refresh after reset
     langchain_tools = registry.get_langchain_tools()
 
     # Create LLM client based on provider

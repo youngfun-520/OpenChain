@@ -75,7 +75,8 @@ class Database:
         await self.conn.executescript(SCHEMA_SQL)
         # Migration: add queue_messages column if missing (for existing databases)
         cursor = await self.conn.execute("PRAGMA table_info(sessions)")
-        columns = {row[1] for row in await cursor.fetchall()}
+        async with cursor:
+            columns = {row[1] for row in await cursor.fetchall()}
         if "queue_messages" not in columns:
             await self.conn.execute(
                 "ALTER TABLE sessions ADD COLUMN queue_messages TEXT"

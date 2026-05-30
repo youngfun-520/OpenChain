@@ -14,9 +14,11 @@ class ReadFileTool(Tool):
         if not self.sc.check_path(path):
             raise SecurityError(f"Path outside workspace: {path}")
         try:
-            with open(path, "r") as f:
+            # Resolve relative to workspace root, not CWD
+            full_path = os.path.join(self.sc.workspace_root, path)
+            with open(full_path, "r") as f:
                 content = f.read()
-            return {"status": "success", "content": content, "path": path}
+            return {"status": "success", "content": content, "path": full_path}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -32,10 +34,12 @@ class WriteFileTool(Tool):
         if self.sc.readonly:
             return {"status": "error", "message": "Workspace is in read-only mode"}
         try:
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
-            with open(path, "w") as f:
+            # Resolve relative to workspace root, not CWD
+            full_path = os.path.join(self.sc.workspace_root, path)
+            Path(full_path).parent.mkdir(parents=True, exist_ok=True)
+            with open(full_path, "w") as f:
                 f.write(content)
-            return {"status": "success", "path": path}
+            return {"status": "success", "path": full_path}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -49,14 +53,16 @@ class EditFileTool(Tool):
         if not self.sc.check_path(path):
             raise SecurityError(f"Path outside workspace: {path}")
         try:
-            with open(path, "r") as f:
+            # Resolve relative to workspace root, not CWD
+            full_path = os.path.join(self.sc.workspace_root, path)
+            with open(full_path, "r") as f:
                 content = f.read()
             if old not in content:
                 return {"status": "error", "message": "Pattern not found"}
             content = content.replace(old, new)
-            with open(path, "w") as f:
+            with open(full_path, "w") as f:
                 f.write(content)
-            return {"status": "success", "path": path}
+            return {"status": "success", "path": full_path}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -70,8 +76,10 @@ class ListDirTool(Tool):
         if not self.sc.check_path(path):
             raise SecurityError(f"Path outside workspace: {path}")
         try:
-            items = os.listdir(path)
-            return {"status": "success", "items": items, "path": path}
+            # Resolve relative to workspace root, not CWD
+            full_path = os.path.join(self.sc.workspace_root, path)
+            items = os.listdir(full_path)
+            return {"status": "success", "items": items, "path": full_path}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -86,7 +94,9 @@ class GrepTool(Tool):
             raise SecurityError(f"Path outside workspace: {path}")
         try:
             results = []
-            for root, dirs, files in os.walk(path):
+            # Resolve relative to workspace root, not CWD
+            full_path = os.path.join(self.sc.workspace_root, path)
+            for root, dirs, files in os.walk(full_path):
                 for file in files:
                     filepath = os.path.join(root, file)
                     if self.sc.check_path(filepath):

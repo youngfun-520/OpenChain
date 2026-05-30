@@ -250,7 +250,8 @@ class SessionManager:
         cursor = await self.db.execute(
             "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
         )
-        row = await cursor.fetchone()
+        async with cursor:
+            row = await cursor.fetchone()
         if not row:
             return {"status": "error", "message": "session not found"}
         queue_data = self._parse_queue_messages(row[0])
@@ -271,7 +272,8 @@ class SessionManager:
         cursor = await self.db.execute(
             "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
         )
-        row = await cursor.fetchone()
+        async with cursor:
+            row = await cursor.fetchone()
         if not row:
             return []
         queue_data = json.loads(row[0] or '{"steering": []}')
@@ -282,7 +284,8 @@ class SessionManager:
         cursor = await self.db.execute(
             "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
         )
-        row = await cursor.fetchone()
+        async with cursor:
+            row = await cursor.fetchone()
         if not row:
             return {"status": "error", "message": "session not found"}
         queue_data = self._parse_queue_messages(row[0])
@@ -299,7 +302,8 @@ class SessionManager:
         cursor = await self.db.execute(
             "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
         )
-        row = await cursor.fetchone()
+        async with cursor:
+            row = await cursor.fetchone()
         if not row:
             return {"status": "error", "message": "session not found"}
         queue_data = self._parse_queue_messages(row[0])
@@ -317,7 +321,8 @@ class SessionManager:
         cursor = await self.db.execute(
             "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
         )
-        row = await cursor.fetchone()
+        async with cursor:
+            row = await cursor.fetchone()
         if not row:
             return []
         queue_data = self._parse_queue_messages(row[0])
@@ -328,7 +333,8 @@ class SessionManager:
         cursor = await self.db.execute(
             "SELECT queue_messages FROM sessions WHERE session_id = ?", (session_id,)
         )
-        row = await cursor.fetchone()
+        async with cursor:
+            row = await cursor.fetchone()
         if not row:
             return {"status": "error", "message": "session not found"}
         queue_data = self._parse_queue_messages(row[0])

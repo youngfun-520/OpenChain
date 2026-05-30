@@ -184,6 +184,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - aiosqlite>=0.20.0
 - click>=8.0.0
 - python-dotenv>=1.0.0
+## [0.2.4] - 2026-05-30
+
+### Security
+
+- **File Tool Path Resolution (Bug #22)** — All file tools (`read_file`, `write_file`, `edit_file`, `list_dir`, `grep`) now resolve paths relative to workspace root instead of CWD, closing a high-severity vulnerability where files at CWD could be read/written when CWD ≠ workspace_root.
+
+### Fixed
+
+- **ToolRegistry Singleton Reset (Bug #23)** — `reset_registry()` with `force_new=True` now correctly updates the class-level `_instance`, ensuring subsequent `ToolRegistry()` calls return the freshly-reset registry instead of a stale copy.
+- **Missing `async with cursor:` (Bug #24)** — 6 session queue methods (`add_steering_message`, `get_steering_queue`, `remove_steering_message`, `add_followup_message`, `get_followup_queue`, `remove_followup_message`) now properly wrap cursor operations in `async with cursor:`.
+- **Database Initialization Cursor Leak (Bug #25)** — `Database.initialize()` now wraps its PRAGMA cursor in `async with cursor:`, consistent with all other DB query methods.
+- **Nodes Registry Refresh** — `node_call_model` now re-fetches `ToolRegistry()` after `reset_registry()`, ensuring the refreshed workspace's tools are used.
+
 ## [0.2.3] - 2026-05-30
 
 ### Fixed
